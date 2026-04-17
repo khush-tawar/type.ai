@@ -1,0 +1,72 @@
+═══════════════════════════════════════════════════════════════════════════════════
+🚀 GITHUB PAGES DEPLOYMENT - STEP BY STEP
+═══════════════════════════════════════════════════════════════════════════════════
+
+This folder is not yet a git repository. Let's set it up:
+
+STEP 1: Initialize Git Locally
+─────────────────────────────────────────────────────────────────────────────────
+git init
+git config user.name "Your Name"
+git config user.email "your.email@example.com"
+
+STEP 2: Add GitHub Remote (You need to provide your repo URL)
+─────────────────────────────────────────────────────────────────────────────────
+
+Option A: If you already have a GitHub repo:
+  git remote add origin https://github.com/YOUR-USERNAME/YOUR-REPO.git
+  git branch -M main
+  git push -u origin main
+
+Option B: Create a new repo on GitHub first:
+  1. Go to github.com
+  2. Click "+" → "New repository"
+  3. Name: font-ai (or whatever)
+  4. Description: Font generation with model selection
+  5. Public (so GitHub Pages works)
+  6. Click "Create repository"
+  7. Copy the HTTPS URL
+  8. Then run:
+     git remote add origin https://github.com/YOUR-USERNAME/font-ai.git
+     git branch -M main
+     git push -u origin main
+
+STEP 3: Create docs folder & Copy webapp
+─────────────────────────────────────────────────────────────────────────────────
+mkdir -p docs
+cp -r webapp/* docs/
+
+STEP 4: Commit Everything
+─────────────────────────────────────────────────────────────────────────────────
+git add .
+git commit -m "Initial deployment with model/font selection and documentation"
+git push origin main
+
+STEP 5: Enable GitHub Pages
+─────────────────────────────────────────────────────────────────────────────────
+1. Go to your repo on GitHub: github.com/YOUR-USERNAME/YOUR-REPO
+2. Click "Settings" (top right)
+3. Left menu → "Pages"
+4. Under "Build and deployment":
+   - Branch: select "main"
+   - Folder: select "/docs"
+5. Click "Save"
+6. Wait 1-2 minutes
+
+STEP 6: Get Your URL
+─────────────────────────────────────────────────────────────────────────────────
+Your deployed site will be at:
+  https://YOUR-USERNAME.github.io/YOUR-REPO/
+
+Example: https://khushwant.github.io/font-ai/
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+PROVIDE YOUR GITHUB INFO:
+Please share:
+1. Your GitHub username
+2. Your repository name (or create new one)
+
+Then I'll deploy it automatically!
+
+═══════════════════════════════════════════════════════════════════════════════════

@@ -1,0 +1,21 @@
+Font Tables
+======================================================================
+
+GlyphOrder: Unknown table
+head: Font header
+hhea: Horizontal header
+maxp: Maximum profile
+OS/2: OS/2 and Windows metrics
+hmtx: Horizontal metrics
+cmap: Character to glyph mapping
+fpgm: Font program
+prep: Control Value Program
+cvt : Control Value Table
+loca: Index to location
+glyf: Glyph data
+name: Naming table
+post: PostScript information
+gasp: Grid-fitting and scan conversion
+GDEF: Unknown table
+GPOS: Glyph positioning
+GSUB: Glyph substitution

@@ -1,0 +1,28 @@
+{
+  "version": "1.0",
+  "generated_at": "2026-04-17T10:13:39.703411",
+  "fonts": {
+    "Morphed-HL__1_": {
+      "path": "/Users/khush/Documents/IIT ID works/sem 4/AI Type reseaarch/Project file/training_data/Morphed-HL__1_",
+      "meta": {
+        "font_name": "Morphed-HL (1)",
+        "glyph_count": 429,
+        "by_script": {
+          "other": 79,
+          "latin": 212,
+          "greek": 1,
+          "devanagari": 94,
+          "symbols": 43
+        },
+        "added": 1774544936.11049
+      }
+    }
+  },
+  "total_fonts": 1,
+  "scripts": [
+    "Latin",
+    "Devanagari",
+    "Arabic",
+    "CJK"
+  ]
+}

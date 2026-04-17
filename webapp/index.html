@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Font Analyzer & Morpher</title>
+    <link rel="stylesheet" href="css/style.css?v=23">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
+</head>
+<body>
+    <header class="app-header">
+        <div class="header-left">
+            <span class="logo-text">Font Analyzer</span>
+        </div>
+        <div class="header-center">
+            <div class="model-selector-group">
+                <div class="selector-item">
+                    <label for="model-select">Model:</label>
+                    <select id="model-select" class="model-select" title="Select which trained model to use">
+                        <option value="">Loading models...</option>
+                    </select>
+                    <span id="model-status" class="selector-status"></span>
+                </div>
+                <div class="selector-divider"></div>
+                <div class="selector-item">
+                    <label for="font-select">Font:</label>
+                    <select id="font-select" class="font-select" title="Select which font to generate">
+                        <option value="">Loading fonts...</option>
+                    </select>
+                    <span id="font-status" class="selector-status"></span>
+                </div>
+            </div>
+        </div>
+        <div class="header-right">
+            <button id="themeToggle" class="icon-btn" title="Toggle theme">
+                <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <nav class="tab-nav">
+        <button class="tab active" data-tab="upload">Explore</button>
+        <button class="tab" data-tab="analysis" disabled>Analysis</button>
+        <button class="tab" data-tab="morphing" disabled>Morphing</button>
+        <button class="tab" data-tab="convolution" disabled>Convolution</button>
+        <button class="tab" data-tab="ai-generate">AI Generate</button>
+    </nav>
+
+    <main class="content">
+
+        <!-- ═══ Explore Tab ═══ -->
+        <section id="tab-upload" class="tab-content active">
+            <div id="dropZone" class="explore-page">
+                <div class="explore-header">
+                    <div>
+                        <h2 class="explore-title">Explore<br>Typefaces</h2>
+                        <p class="explore-subtitle">Analyze vector structure, morph glyphs, extract features</p>
+                    </div>
+                    <div class="explore-upload">
+                        <input type="file" id="fontFileInput" accept=".ttf,.otf,.woff" hidden>
+                        <button class="text-link" id="browseBtn">Upload .ttf / .otf / .woff &rarr;</button>
+                        <span class="format-hint">or drag &amp; drop anywhere</span>
+                    </div>
+                </div>
+                <div class="explore-search">
+                    <input type="text" id="fontSearch" class="search-input" placeholder="Search 200+ fonts...">
+                </div>
+                <div id="fontGrid" class="font-grid"></div>
+                <div id="fontGridMore" class="font-grid-more hidden">
+                    <button class="text-link" id="loadMoreFonts">Show more &rarr;</button>
+                </div>
+            </div>
+            <div id="loadingIndicator" class="loading hidden">
+                <div class="spinner"></div>
+                <p id="loadingMsg">Analyzing font...</p>
+            </div>
+        </section>
+
+        <!-- ═══ Analysis Tab ═══ -->
+        <section id="tab-analysis" class="tab-content">
+            <div class="analysis-layout">
+                <div class="analysis-section">
+                    <div class="section-header"><h3>Metadata</h3></div>
+                    <div id="metadataContent" class="metadata-grid"></div>
+                </div>
+                <div class="analysis-section">
+                    <div class="section-header">
+                        <h3>Type Specimen</h3>
+                        <input type="text" id="previewText" class="preview-input" value="The quick brown fox jumps over the lazy dog" placeholder="Type preview text...">
+                    </div>
+                    <div id="fontPreview" class="font-preview"></div>
+                    <div id="previewSizes" class="preview-sizes"></div>
+                </div>
+                <div class="analysis-section analysis-row">
+                    <div class="analysis-half">
+                        <div class="section-header"><h3>Unicode Coverage</h3><span class="badge" id="glyphCount"></span></div>
+                        <div class="scrollable" id="unicodeContent"></div>
+                    </div>
+                    <div class="analysis-half">
+                        <div class="section-header"><h3>Font Tables</h3></div>
+                        <div class="scrollable" id="tablesContent"></div>
+                    </div>
+                </div>
+                <div class="analysis-section">
+                    <div class="section-header">
+                        <h3>Glyph Inspector</h3>
+                        <div class="glyph-controls">
+                            <input type="text" id="glyphSearch" placeholder="Search glyphs..." class="glyph-search">
+                            <select id="glyphScriptFilter" class="select-small">
+                                <option value="all">All Scripts</option>
+                                <option value="latin">Latin</option>
+                                <option value="devanagari">Devanagari</option>
+                                <option value="bengali">Bengali</option>
+                                <option value="tamil">Tamil</option>
+                                <option value="telugu">Telugu</option>
+                                <option value="arabic">Arabic</option>
+                                <option value="cyrillic">Cyrillic</option>
+                                <option value="greek">Greek</option>
+                                <option value="cjk">CJK</option>
+                                <option value="symbols">Symbols</option>
+                                <option value="unmapped">Unmapped / Ligatures</option>
+                            </select>
+                            <select id="glyphView" class="select-small"><option value="rendered">Rendered</option><option value="bezier">Bezier</option><option value="sdf">SDF</option></select>
+                        </div>
+                    </div>
+                    <div id="glyphGridInfo" class="glyph-grid-info"></div>
+                    <div id="glyphGrid" class="glyph-grid"></div>
+                    <div id="glyphGridMore" class="glyph-grid-more hidden">
+                        <button class="text-link" id="loadMoreGlyphs">Load more glyphs &rarr;</button>
+                    </div>
+                    <div id="glyphDetail" class="glyph-detail hidden">
+                        <canvas id="glyphDetailCanvas" width="280" height="280"></canvas>
+                        <div id="glyphDetailInfo"></div>
+                    </div>
+                </div>
+                <details class="analysis-detail">
+                    <summary>Signed Distance Field</summary>
+                    <div class="detail-body">
+                        <div class="sdf-controls">
+                            <label>Char: <input type="text" id="sdfChar" value="A" maxlength="1" class="char-input"></label>
+                            <label>Res: <select id="sdfRes" class="select-small"><option value="64">64</option><option value="128" selected>128</option><option value="256">256</option></select></label>
+                        </div>
+                        <div class="sdf-display">
+                            <div class="sdf-panel"><h4>Rasterized</h4><canvas id="sdfRasterCanvas"></canvas></div>
+                            <div class="sdf-panel"><h4>SDF</h4><canvas id="sdfCanvas"></canvas></div>
+                            <div class="sdf-panel"><h4>Contours</h4><canvas id="sdfContourCanvas"></canvas></div>
+                        </div>
+                    </div>
+                </details>
+                <details class="analysis-detail">
+                    <summary>Bezier Curves</summary>
+                    <div class="detail-body bezier-body">
+                        <label>Char: <input type="text" id="bezierChar" value="A" maxlength="1" class="char-input"></label>
+                        <canvas id="bezierCanvas" width="400" height="400"></canvas>
+                        <div id="bezierInfo" class="bezier-info"></div>
+                    </div>
+                </details>
+                <div class="export-row">
+                    <button class="text-link" id="exportReport">Download Report &rarr;</button>
+                    <button class="text-link" id="exportJSON">Export JSON &rarr;</button>
+                    <button class="text-link" id="exportSDF">Export SDF &rarr;</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══ Morphing Tab ═══ -->
+        <section id="tab-morphing" class="tab-content">
+            <div class="morphing-layout">
+
+                <!-- ── Toolbar ── -->
+                <div class="morph-toolbar">
+                    <div class="morph-toolbar-left">
+                        <input type="text" id="morphChar" value="A" maxlength="1" class="morph-char-input">
+                        <button class="morph-action" id="resetMorphing">Reset</button>
+                    </div>
+                    <div class="morph-toolbar-right">
+                        <button class="morph-action accent" id="downloadTTF">&#8595; TTF</button>
+                        <button class="morph-action" id="exportMorphed">PNG</button>
+                        <button class="morph-action" id="exportMorphCfg">Config</button>
+                    </div>
+                </div>
+
+                <!-- ── Display ── -->
+                <div class="morph-display">
+                    <div class="morph-panel morph-panel-lg">
+                        <canvas id="morphResultCanvas" width="280" height="280"></canvas>
+                    </div>
+                </div>
+                <!-- Original hidden but kept for JS reference -->
+                <canvas id="morphOrigCanvas" width="280" height="280" style="display:none"></canvas>
+                <div id="skeletonStatus" class="morph-status">
+                    <span>Skeleton: waiting for glyph...</span>
+                </div>
+
+                <!-- ── Full Alphabet (always visible) ── -->
+                <div class="morph-alphabet">
+                    <canvas id="alphabetCanvas" width="700" height="200"></canvas>
+                </div>
+
+                <!-- specimen removed -->
+
+                <!-- ── Presets ── -->
+                <div class="presets-bar">
+                    <span class="presets-label">Presets</span>
+                    <div class="presets-grid" id="presetsGrid"></div>
+                </div>
+
+                <!-- ── Detail Sections ── -->
+                <div class="morph-details-section">
+
+                    <details class="morph-detail" id="detailVecStats">
+                        <summary>Vector Stats</summary>
+                        <div class="morph-detail-body">
+                            <div class="vector-stats-grid" id="vectorStatsGrid">
+                                <div class="vector-stat-item"><span class="vector-stat-value" id="statContours">&mdash;</span><span class="vector-stat-label">Contours</span></div>
+                                <div class="vector-stat-item"><span class="vector-stat-value" id="statSegments">&mdash;</span><span class="vector-stat-label">Segments</span></div>
+                                <div class="vector-stat-item"><span class="vector-stat-value" id="statPoints">&mdash;</span><span class="vector-stat-label">Points</span></div>
+                                <div class="vector-stat-item"><span class="vector-stat-value" id="statLines">&mdash;</span><span class="vector-stat-label">Lines</span></div>
+                                <div class="vector-stat-item"><span class="vector-stat-value" id="statQuadCurves">&mdash;</span><span class="vector-stat-label">Quad Curves</span></div>
+                                <div class="vector-stat-item"><span class="vector-stat-value" id="statCubicCurves">&mdash;</span><span class="vector-stat-label">Cubic Curves</span></div>
+                                <div class="vector-stat-item"><span class="vector-stat-value" id="statTotalCmds">&mdash;</span><span class="vector-stat-label">Total Commands</span></div>
+                                <div class="vector-stat-item"><span class="vector-stat-value" id="statMoves">&mdash;</span><span class="vector-stat-label">Moves</span></div>
+                            </div>
+                            <div class="vector-stats-bar" id="vectorStatsBar">
+                                <div class="vector-bar-segment vector-bar-lines" id="barLines" title="Lines"></div>
+                                <div class="vector-bar-segment vector-bar-quad" id="barQuad" title="Quadratic"></div>
+                                <div class="vector-bar-segment vector-bar-cubic" id="barCubic" title="Cubic"></div>
+                            </div>
+                            <div class="vector-bar-legend">
+                                <span class="legend-item"><span class="legend-dot" style="background:var(--accent)"></span>Lines</span>
+                                <span class="legend-item"><span class="legend-dot" style="background:#3B82F6"></span>Quadratic</span>
+                                <span class="legend-item"><span class="legend-dot" style="background:#10B981"></span>Cubic</span>
+                            </div>
+                        </div>
+                    </details>
+
+                    <details class="morph-detail" id="detailSkeleton">
+                        <summary>Skeleton Analysis</summary>
+                        <div class="morph-detail-body">
+                            <div class="skel-toolbar">
+                                <div class="skel-pills">
+                                    <label class="skel-pill"><input type="checkbox" id="skelShowDT" checked><span>Distance</span></label>
+                                    <label class="skel-pill"><input type="checkbox" id="skelShowWidth" checked><span>Width</span></label>
+                                    <label class="skel-pill"><input type="checkbox" id="skelShowNodes" checked><span>Nodes</span></label>
+                                    <label class="skel-pill"><input type="checkbox" id="skelShowFeatures" checked><span>Features</span></label>
+                                </div>
+                                <button class="btn btn-sm" id="extractSkeletonBtn" style="margin-left:auto">Re-extract</button>
+                            </div>
+                            <div class="skel-canvas-wrap">
+                                <canvas id="skeletonCanvas" width="400" height="320"></canvas>
+                                <div class="skel-legend-bar">
+                                    <span class="skel-legend-item"><span class="legend-dot" style="background:var(--err)"></span>Endpoint</span>
+                                    <span class="skel-legend-item"><span class="legend-dot" style="background:var(--ok)"></span>Junction</span>
+                                    <span class="skel-legend-item"><span class="legend-line" style="background:linear-gradient(90deg,#00c8ff,#ff00ff)"></span>Stroke Width</span>
+                                </div>
+                            </div>
+                            <div class="skel-metrics" id="skelMetrics">
+                                <!-- JS fills metric cards -->
+                            </div>
+                            <div class="skel-features" id="skelFeatures">
+                                <!-- JS fills feature details -->
+                            </div>
+                        </div>
+                    </details>
+
+                    <details class="morph-detail" id="detailManifold">
+                        <summary>Style Manifold</summary>
+                        <div class="morph-detail-body">
+                            <div class="manifold-row">
+                                <div class="manifold-radar"><canvas id="radarCanvas" width="320" height="320"></canvas></div>
+                                <div class="manifold-matrix">
+                                    <canvas id="styleMatrixCanvas"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </details>
+
+                    <details class="morph-detail" id="detailTopology">
+                        <summary>Glyph Topology</summary>
+                        <div class="morph-detail-body">
+                            <div class="topology-grid">
+                                <div class="topology-panel"><h4>Contour Hierarchy</h4><div id="topoContours" class="topo-info"></div></div>
+                                <div class="topology-panel"><h4>Structural Features</h4><div id="topoStructure" class="topo-info"></div></div>
+                                <div class="topology-panel"><h4>Stroke Analysis</h4><div id="topoStrokes" class="topo-info"></div></div>
+                                <div class="topology-panel"><h4>Morph Validation</h4><div id="topoValidation" class="topo-info"></div></div>
+                            </div>
+                            <div class="topology-visual">
+                                <canvas id="topoCanvas" width="280" height="280"></canvas>
+                                <div class="topo-legend">
+                                    <span class="legend-item"><span class="legend-dot" style="background:var(--ok)"></span>Outer</span>
+                                    <span class="legend-item"><span class="legend-dot" style="background:var(--err)"></span>Counter</span>
+                                    <span class="legend-item"><span class="legend-dot" style="background:var(--warn)"></span>Stem</span>
+                                    <span class="legend-item"><span class="legend-dot" style="background:var(--accent)"></span>Crossbar</span>
+                                </div>
+                            </div>
+                        </div>
+                    </details>
+
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ═══ Convolution Tab ═══ -->
+        <section id="tab-convolution" class="tab-content">
+            <div class="conv-layout">
+                <div class="card conv-sidebar">
+                    <div class="card-header"><h3>Settings</h3></div>
+                    <div class="card-body">
+                        <label>Character: <input type="text" id="convChar" value="A" maxlength="1" class="char-input-lg"></label>
+                        <div id="featureVector" class="feature-vector hidden"><h4>Feature Vector</h4><div id="fvContent"></div></div>
+                        <div class="conv-export-section hidden" id="convExportSection">
+                            <h4 style="margin-top:14px;font-size:.8rem">Export</h4>
+                            <button class="btn btn-sm" id="exportFV" style="width:100%;margin-top:6px">Download Feature Vector (CSV)</button>
+                            <button class="btn btn-sm" id="exportAllConv" style="width:100%;margin-top:6px">Download All Filters</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card conv-main">
+                    <div class="card-header">
+                        <h3>Results</h3>
+                        <div class="conv-filter-pills" id="convFilterPills">
+                            <button class="conv-pill active" data-cat="all">All</button>
+                            <button class="conv-pill" data-cat="edge">Edge</button>
+                            <button class="conv-pill" data-cat="style">Style</button>
+                            <button class="conv-pill" data-cat="texture">Texture</button>
+                            <button class="conv-pill" data-cat="multiscale">Multi-scale</button>
+                        </div>
+                    </div>
+                    <div class="card-body"><div id="convGrid" class="conv-grid"></div></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══ Fontera Type 01 — AI Generate Tab ═══ -->
+        <section id="tab-ai-generate" class="tab-content">
+
+            <!-- Server offline state -->
+            <div id="ai-server-banner" class="ai-offline-banner">
+                <span class="ai-offline-icon">&#9888;</span>
+                <div>
+                    <strong>Fontera server not running</strong>
+                    <p>Start it to use AI generation: <code>./run_server.sh</code></p>
+                </div>
+                <button class="text-link" id="ai-refresh-btn">Retry &rarr;</button>
+            </div>
+
+            <!-- Main UI (shown when server is reachable) -->
+            <div id="ai-main-ui" style="display:none" class="ai-page">
+
+                <!-- ── Header bar ─────────────────────────────────────── -->
+                <div class="ai-header-bar">
+                    <div class="ai-header-left">
+                        <span class="ai-model-name" id="ai-model-name-label">Fontera Type 01</span>
+                        <div id="ai-model-status" class="ai-status-pill ai-status-idle">
+                            <span class="ai-status-dot"></span><span id="ai-status-text">Checking…</span>
+                        </div>
+                    </div>
+                    <div class="ai-header-right">
+                        <button class="morph-action" id="ai-quick-train-btn">&#9193; Quick train</button>
+                        <button class="morph-action accent" id="ai-train-btn">&#9654; Train on all fonts</button>
+                        <label class="ai-epochs-label">
+                            <input type="number" id="ai-epochs-input" value="50" min="5" max="500" class="ai-epochs-input"> epochs
+                        </label>
+                    </div>
+                </div>
+
+                <!-- ── Training progress (hidden unless training) ──────── -->
+                <div id="ai-training-panel" class="ai-training-panel" style="display:none">
+                    <div class="ai-progress-track"><div class="ai-progress-bar" id="ai-progress-bar"></div></div>
+                    <div class="ai-progress-row">
+                        <span class="ai-progress-label" id="ai-progress-label">Starting…</span>
+                        <button class="morph-action" id="ai-stop-btn">&#9632; Stop</button>
+                    </div>
+                    <canvas id="ai-loss-canvas" width="600" height="120" class="ai-loss-canvas"></canvas>
+                </div>
+
+                <!-- ── Generate workspace (hidden until model trained) ─── -->
+                <div id="ai-workspace" style="display:none">
+
+                    <!-- Toolbar -->
+                    <div class="ai-toolbar">
+                        <input type="text" id="ai-char-input" value="A" maxlength="1" class="ai-char-input" title="Character to generate">
+                        <button class="morph-action accent" id="ai-generate-btn">&#9654; Generate</button>
+                        <button class="morph-action" id="ai-random-btn">&#9685; Randomize</button>
+                        <button class="morph-action" id="ai-alphabet-btn">&#8633; Alphabet</button>
+                        <div class="ai-toolbar-sep"></div>
+                        <span class="ai-dim-badge">Latent dim: <strong id="ai-latent-dim-label">32</strong></span>
+                    </div>
+
+                    <!-- Two-column layout: canvas left, sliders right -->
+                    <div class="ai-workspace-body">
+
+                        <!-- Left: main canvas -->
+                        <div class="ai-canvas-col">
+                            <div class="ai-canvas-wrap">
+                                <canvas id="ai-gen-canvas" width="320" height="320" class="ai-gen-canvas"></canvas>
+                                <div class="ai-canvas-hint" id="ai-canvas-hint">Click Generate &#8593;</div>
+                            </div>
+                            <!-- Alphabet strip (shown when Alphabet clicked) -->
+                            <div id="ai-alphabet-strip" class="ai-alphabet-strip" style="display:none"></div>
+                        </div>
+
+                        <!-- Right: style controls -->
+                        <div class="ai-controls-col">
+                            <div class="ai-controls-title">Style axes <span class="ai-controls-sub">(drag to explore latent space)</span></div>
+                            <div id="ai-latent-sliders" class="ai-latent-sliders"></div>
+                        </div>
+                    </div>
+
+                    <!-- Style Space Grid -->
+                    <details class="ai-detail" open>
+                        <summary class="ai-detail-summary">Style Space Grid <span class="ai-detail-hint">— vary two latent dims across a grid</span></summary>
+                        <div class="ai-detail-body">
+                            <div class="ai-grid-toolbar">
+                                <label class="ai-label">X dim <input type="number" id="ai-grid-dimx" value="0" min="0" class="ai-number-input ai-number-sm"></label>
+                                <label class="ai-label">Y dim <input type="number" id="ai-grid-dimy" value="1" min="0" class="ai-number-input ai-number-sm"></label>
+                                <label class="ai-label">Size
+                                    <select id="ai-grid-size" class="select-small">
+                                        <option value="4">4×4</option>
+                                        <option value="6" selected>6×6</option>
+                                        <option value="8">8×8</option>
+                                    </select>
+                                </label>
+                                <button class="morph-action accent" id="ai-grid-btn">&#9654; Generate Grid</button>
+                            </div>
+                            <div id="ai-grid-output" class="ai-grid-output"></div>
+                        </div>
+                    </details>
+
+                    <!-- Style Interpolation -->
+                    <details class="ai-detail">
+                        <summary class="ai-detail-summary">Style Interpolation <span class="ai-detail-hint">— morph between two random styles</span></summary>
+                        <div class="ai-detail-body">
+                            <button class="morph-action accent" id="ai-interp-btn">&#9654; Generate Interpolation</button>
+                            <div id="ai-interp-output" class="ai-interp-output"></div>
+                        </div>
+                    </details>
+
+                    <!-- Dataset -->
+                    <details class="ai-detail" id="ai-dataset-detail">
+                        <summary class="ai-detail-summary">Training Dataset <span class="ai-detail-hint">— collect fonts from the Explore tab to build your own dataset</span></summary>
+                        <div class="ai-detail-body">
+                            <div id="ai-dataset-stats" class="ai-dataset-stats">
+                                <div class="ai-dataset-empty">No fonts collected yet. Load a font in the Explore tab, then click "Add to Dataset" below.</div>
+                            </div>
+                            <div class="ai-grid-toolbar" style="margin-top:14px">
+                                <label class="ai-label">Font file
+                                    <input type="file" id="ai-dataset-upload" accept=".ttf,.otf" style="display:none">
+                                    <button class="morph-action" id="ai-dataset-pick-btn">&#128196; Choose font…</button>
+                                </label>
+                                <label class="ai-label">&nbsp;
+                                    <button class="morph-action accent" id="ai-dataset-add-btn" disabled>&#43; Add to Dataset</button>
+                                </label>
+                                <span id="ai-dataset-font-name" class="ai-font-name-label">No font selected</span>
+                            </div>
+                            <div id="ai-dataset-result" class="ai-dataset-result" style="display:none">
+                                <div id="ai-dataset-result-text" class="ai-dataset-result-text"></div>
+                                <div id="ai-dataset-samples" class="ai-dataset-samples"></div>
+                                <div id="ai-dataset-chars" class="ai-dataset-chars"></div>
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- Style Transfer -->
+                    <details class="ai-detail">
+                        <summary class="ai-detail-summary">Style Transfer <span class="ai-detail-hint">— encode any font's style, then explore variations</span></summary>
+                        <div class="ai-detail-body">
+                            <div class="ai-grid-toolbar">
+                                <label class="ai-label">Font file
+                                    <input type="file" id="ai-font-upload" accept=".ttf,.otf" style="display:none">
+                                    <button class="morph-action" id="ai-font-pick-btn">&#128196; Choose font…</button>
+                                </label>
+                                <label class="ai-label">Char
+                                    <input type="text" id="ai-encode-char" value="K" maxlength="1" class="ai-char-input">
+                                </label>
+                                <label class="ai-label">&nbsp;
+                                    <button class="morph-action accent" id="ai-encode-btn" disabled>&#8659; Encode Style</button>
+                                </label>
+                                <span id="ai-font-name" class="ai-font-name-label">No font selected</span>
+                            </div>
+                            <div id="ai-encode-output" class="ai-encode-output" style="display:none">
+                                <div class="ai-encode-pair">
+                                    <div class="ai-encode-panel">
+                                        <div class="ai-encode-label">Source glyph</div>
+                                        <img id="ai-encode-src" class="ai-encode-img" alt="source">
+                                    </div>
+                                    <div class="ai-encode-arrow">&#8594;</div>
+                                    <div class="ai-encode-panel">
+                                        <div class="ai-encode-label">Model reconstruction</div>
+                                        <img id="ai-encode-dec" class="ai-encode-img" alt="decoded">
+                                    </div>
+                                    <div class="ai-encode-note">
+                                        Sliders updated with this style.<br>Adjust them and hit Generate to explore variations.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </details>
+
+                </div><!-- /ai-workspace -->
+            </div><!-- /ai-main-ui -->
+        </section>
+
+    </main>
+
+    <!-- ═══ Fixed Remix Banner (cookie-banner style) ═══ -->
+    <div class="remix-banner" id="remixSheet" style="display:none">
+        <div class="remix-handle" id="remixHandle">
+            <span class="remix-handle-label">Remix</span>
+            <svg class="remix-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>
+        </div>
+        <div class="remix-body" id="remixBody">
+            <div class="remix-tabs" id="remixTabs">
+                <!-- JS creates category tabs -->
+            </div>
+            <div class="remix-content">
+                <div class="remix-sliders" id="morphSlidersContainer">
+                    <!-- JS builds sliders with per-axis manifold rows -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="app-footer">
+        <p>In-browser vector morphing &middot; No server required</p>
+    </footer>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="js/ai-generator.js?v=4"></script>
+    <script src="js/font-analyzer.js?v=21"></script>
+    <script src="js/font-renderer.js?v=21"></script>
+    <script src="js/font-morpher.js?v=21"></script>
+    <script src="js/font-convolution.js?v=21"></script>
+    <script src="js/google-fonts.js?v=21"></script>
+    <script src="js/model-manager.js?v=1"></script>
+    <script src="js/app.js?v=21"></script>
+</body>
+</html>

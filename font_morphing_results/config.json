@@ -1,0 +1,35 @@
+{
+  "axes": {
+    "serif_scale": {
+      "min_val": -1.0,
+      "max_val": 1.0,
+      "description": "Serif (-1) to Sans-Serif (+1)"
+    },
+    "weight": {
+      "min_val": -1.0,
+      "max_val": 1.0,
+      "description": "Thin (-1) to Bold (+1)"
+    },
+    "slant": {
+      "min_val": -1.0,
+      "max_val": 1.0,
+      "description": "Backward slant (-1) to Forward slant (+1)"
+    },
+    "width": {
+      "min_val": -1.0,
+      "max_val": 1.0,
+      "description": "Condensed (-1) to Extended (+1)"
+    },
+    "geometric": {
+      "min_val": -1.0,
+      "max_val": 1.0,
+      "description": "Humanist (-1) to Geometric (+1)"
+    },
+    "decorative": {
+      "min_val": 0.0,
+      "max_val": 1.0,
+      "description": "Plain (0) to Decorative (1)"
+    }
+  },
+  "base_fonts": []
+}
