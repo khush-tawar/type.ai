@@ -1,0 +1,14 @@
+{
+  "models": {
+    "v1": {
+      "status": "active",
+      "created_at": "2026-04-17T00:00:00Z",
+      "model_file": "font_vae3.pt",
+      "fonts": ["Roboto", "Hind", "Montserrat", "Samarkan"],
+      "latent_dim": 32,
+      "version_detail": "Trained on 4 fonts",
+      "size_mb": 2.5
+    }
+  },
+  "latest": "v1"
+}
