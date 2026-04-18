@@ -5,6 +5,11 @@
  */
 
 const ModelManager = (() => {
+  // Shared runtime config (set in runtime-config.js)
+  const API = (window.APP_CONFIG && typeof window.APP_CONFIG.apiBase === 'string')
+    ? window.APP_CONFIG.apiBase
+    : (window.location.port === '5001' ? '' : 'http://localhost:5001');
+
   let state = {
     currentModel: null,
     currentFont: null,
@@ -54,7 +59,10 @@ const ModelManager = (() => {
         return;
       }
 
-      const response = await fetch('/api/models/list');
+      const response = await fetch(`${API}/api/models/list`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
       const data = await response.json();
 
       state.models = data.models || [];
@@ -116,7 +124,10 @@ const ModelManager = (() => {
         return;
       }
 
-      const response = await fetch('/api/pipeline/status');
+      const response = await fetch(`${API}/api/pipeline/status`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
       const data = await response.json();
 
       state.fonts = data.font_names || [];
@@ -172,7 +183,7 @@ const ModelManager = (() => {
     try {
       console.log(`[ModelManager] Switching to model ${version}...`);
       
-      const response = await fetch(`/api/models/${version}/set`, {
+      const response = await fetch(`${API}/api/models/${version}/set`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -257,8 +268,16 @@ const ModelManager = (() => {
    */
   const showError = (message) => {
     console.error('[ModelManager]', message);
-    // Could add toast notification here
-    alert(message);
+    const modelStatus = document.getElementById('model-status');
+    const fontStatus = document.getElementById('font-status');
+    if (modelStatus && !state.models.length) {
+      modelStatus.textContent = 'API offline';
+      modelStatus.className = 'selector-status';
+    }
+    if (fontStatus && !state.fonts.length) {
+      fontStatus.textContent = 'API offline';
+      fontStatus.className = 'selector-status';
+    }
   };
 
   /**

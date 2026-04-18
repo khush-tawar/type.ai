@@ -5,8 +5,12 @@
 set -e
 cd "$(dirname "$0")"
 
-# Use system python3 (avoids broken .venv)
-PYTHON=/usr/bin/python3
+# Prefer project venv for consistent dependencies, fallback to system python3
+if [ -x "./.venv/bin/python" ]; then
+	PYTHON="./.venv/bin/python"
+else
+	PYTHON="/usr/bin/python3"
+fi
 
 echo ""
 echo "================================="
@@ -15,4 +19,4 @@ echo "  http://localhost:5001"
 echo "================================="
 echo ""
 
-$PYTHON server.py
+"$PYTHON" server.py

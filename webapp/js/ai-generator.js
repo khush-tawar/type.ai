@@ -6,8 +6,10 @@
 
 const AIGenerator = (() => {
 
-    // Relative when served by Flask (:5001), explicit otherwise
-    const API = window.location.port === '5001' ? '' : 'http://localhost:5001';
+    // Shared runtime config (set in runtime-config.js)
+    const API = (window.APP_CONFIG && typeof window.APP_CONFIG.apiBase === 'string')
+        ? window.APP_CONFIG.apiBase
+        : (window.location.port === '5001' ? '' : 'http://localhost:5001');
 
     let pollTimer  = null;
     let latentDim  = 32;
@@ -30,6 +32,14 @@ const AIGenerator = (() => {
         const data = await r.json();
         if (!r.ok) throw new Error(data.error || 'HTTP ' + r.status);
         return data;
+    }
+
+    async function fileToBase64(file) {
+        const buffer = await file.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        return btoa(binary);
     }
 
     // ── Init ──────────────────────────────────────────────────
@@ -264,11 +274,7 @@ const AIGenerator = (() => {
 
         try {
             const file   = input.files[0];
-            const buffer = await file.arrayBuffer();
-            const bytes  = new Uint8Array(buffer);
-            let binary   = '';
-            for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-            const b64  = btoa(binary);
+            const b64  = await fileToBase64(file);
             const char = $('ai-encode-char')?.value || 'K';
 
             const result = await post('/api/encode-font', { font_data: b64, char });
@@ -287,6 +293,63 @@ const AIGenerator = (() => {
             toast(`Style encoded from "${file.name}". Sliders updated — hit Generate to explore.`, 'ok');
         } catch (e) {
             toast('Encode error: ' + e.message, 'err');
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    async function applyStyleTransfer() {
+        const input = $('ai-font-upload');
+        if (!input?.files?.[0]) {
+            toast('Please select a font file first', 'err');
+            return;
+        }
+
+        const btn = $('ai-transfer-btn');
+        if (btn) btn.disabled = true;
+
+        try {
+            const file = input.files[0];
+            const b64 = await fileToBase64(file);
+            const char = $('ai-encode-char')?.value || 'K';
+            const targetStyle = $('ai-target-style')?.value || 'serif';
+            const styleStrength = parseFloat($('ai-style-strength')?.value || '1');
+
+            const result = await post('/api/style-transfer', {
+                font_data: b64,
+                char,
+                target_style: targetStyle,
+                style_strength: styleStrength,
+            });
+
+            const out = $('ai-transfer-output');
+            if (out) out.style.display = '';
+
+            const srcImg = $('ai-transfer-src');
+            const styledImg = $('ai-transfer-styled');
+            const note = $('ai-transfer-note');
+            if (srcImg) srcImg.src = result.reconstructed_image || result.source_image;
+            if (styledImg) styledImg.src = result.styled_image;
+            if (note) {
+                const prob = Number.isFinite(result.source_serif_probability)
+                    ? `Source serif prob: ${result.source_serif_probability.toFixed(2)}`
+                    : 'Source serif prob unavailable';
+                note.textContent = `${prob}. Target: ${result.target_style}, strength ${result.style_strength}.`;
+            }
+
+            if (result.styled_image) {
+                renderToCanvas(result.styled_image, $('ai-gen-canvas'), true);
+                const hint = $('ai-canvas-hint');
+                if (hint) hint.classList.add('hidden');
+            }
+
+            if (result.styled_latent) {
+                setSliders(result.styled_latent);
+            }
+
+            toast(`Applied ${targetStyle} style transfer to '${char}'.`, 'ok');
+        } catch (e) {
+            toast('Style transfer error: ' + e.message, 'err');
         } finally {
             if (btn) btn.disabled = false;
         }
@@ -338,6 +401,8 @@ const AIGenerator = (() => {
 
         const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
         const z     = getZ();
+        const targetStyle = $('ai-target-style')?.value || '';
+        const styleStrength = parseFloat($('ai-style-strength')?.value || '1');
         strip.innerHTML = '';
 
         try {
@@ -347,6 +412,8 @@ const AIGenerator = (() => {
             const result = await post('/api/generate-alphabet', {
                 latent_vector: z,
                 chars: chars,
+                target_style: targetStyle,
+                style_strength: styleStrength,
                 // Optionally could pass reference_font here, but let's use default for now
             });
 
@@ -480,6 +547,7 @@ const AIGenerator = (() => {
         on('ai-interp-btn',      generateInterp);
         on('ai-refresh-btn',     checkStatus);
         on('ai-encode-btn',      encodeFromFont);
+        on('ai-transfer-btn',    applyStyleTransfer);
 
         // Style transfer font picker
         const pickBtn   = $('ai-font-pick-btn');
@@ -490,9 +558,21 @@ const AIGenerator = (() => {
                 const name    = fileInput.files?.[0]?.name;
                 const lbl     = $('ai-font-name');
                 const encBtn  = $('ai-encode-btn');
+                const trfBtn  = $('ai-transfer-btn');
                 if (lbl)    lbl.textContent = name || 'No font selected';
                 if (encBtn) encBtn.disabled = !name;
+                if (trfBtn) trfBtn.disabled = !name;
             });
+        }
+
+        const strength = $('ai-style-strength');
+        const strengthVal = $('ai-style-strength-value');
+        if (strength && strengthVal) {
+            const syncStrength = () => {
+                strengthVal.textContent = parseFloat(strength.value || '1').toFixed(1);
+            };
+            strength.addEventListener('input', syncStrength);
+            syncStrength();
         }
 
         // Dataset font picker

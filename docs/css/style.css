@@ -1620,6 +1620,19 @@ details[open] > .ai-detail-summary::before { content: '▾ '; }
   align-self: center; margin-left: 4px;
   max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.ai-style-transfer-toolbar {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+.ai-style-strength-slider {
+  min-width: 120px;
+}
+.ai-style-strength-value {
+  margin-left: 8px;
+  font-size: .72rem;
+  color: var(--text2);
+  font-family: var(--mono);
+}
 .ai-encode-output { margin-top: 16px; }
 .ai-encode-pair {
   display: flex; align-items: center; gap: 20px; flex-wrap: wrap;

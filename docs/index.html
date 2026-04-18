@@ -481,6 +481,21 @@
                                 </label>
                                 <span id="ai-font-name" class="ai-font-name-label">No font selected</span>
                             </div>
+                            <div class="ai-grid-toolbar ai-style-transfer-toolbar">
+                                <label class="ai-label">Target style
+                                    <select id="ai-target-style" class="select-small">
+                                        <option value="serif">Serif</option>
+                                        <option value="sans">Sans</option>
+                                    </select>
+                                </label>
+                                <label class="ai-label">Strength
+                                    <input type="range" id="ai-style-strength" min="0" max="2" step="0.1" value="1" class="ai-slider ai-style-strength-slider">
+                                    <span id="ai-style-strength-value" class="ai-style-strength-value">1.0</span>
+                                </label>
+                                <label class="ai-label">&nbsp;
+                                    <button class="morph-action" id="ai-transfer-btn" disabled>&#8644; Apply Style Transfer</button>
+                                </label>
+                            </div>
                             <div id="ai-encode-output" class="ai-encode-output" style="display:none">
                                 <div class="ai-encode-pair">
                                     <div class="ai-encode-panel">
@@ -494,6 +509,22 @@
                                     </div>
                                     <div class="ai-encode-note">
                                         Sliders updated with this style.<br>Adjust them and hit Generate to explore variations.
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="ai-transfer-output" class="ai-encode-output" style="display:none">
+                                <div class="ai-encode-pair">
+                                    <div class="ai-encode-panel">
+                                        <div class="ai-encode-label">Encoded glyph</div>
+                                        <img id="ai-transfer-src" class="ai-encode-img" alt="encoded source">
+                                    </div>
+                                    <div class="ai-encode-arrow">&#8594;</div>
+                                    <div class="ai-encode-panel">
+                                        <div class="ai-encode-label">Transferred glyph</div>
+                                        <img id="ai-transfer-styled" class="ai-encode-img" alt="transferred">
+                                    </div>
+                                    <div class="ai-encode-note" id="ai-transfer-note">
+                                        Target style applied in latent space.
                                     </div>
                                 </div>
                             </div>
@@ -530,6 +561,7 @@
 
     <div id="toast" class="toast hidden"></div>
 
+    <script src="js/runtime-config.js?v=1"></script>
     <script src="js/ai-generator.js?v=4"></script>
     <script src="js/font-analyzer.js?v=21"></script>
     <script src="js/font-renderer.js?v=21"></script>

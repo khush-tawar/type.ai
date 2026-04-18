@@ -97,11 +97,19 @@ def handle_options(path: str) -> Response:
 
 _model_cache: Optional[object] = None   # FontVAE instance
 _model_latent_dim: int = 64
+_style_axis_delta = None
+_serif_centroid = None
+_sans_centroid = None
+_model_cache_mtime_ns: Optional[int] = None
 
 
 def _reset_model_cache() -> None:
-    global _model_cache
+    global _model_cache, _style_axis_delta, _serif_centroid, _sans_centroid, _model_cache_mtime_ns
     _model_cache = None
+    _style_axis_delta = None
+    _serif_centroid = None
+    _sans_centroid = None
+    _model_cache_mtime_ns = None
 
 
 def _infer_version(ckpt: dict) -> tuple:
@@ -125,15 +133,17 @@ def _infer_version(ckpt: dict) -> tuple:
 
 def _load_model():
     """Lazy-load the FontVAE model from disk. Returns (model, device) or raises."""
-    global _model_cache, _model_latent_dim
-
-    if _model_cache is not None:
-        import torch
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        return _model_cache, device
+    global _model_cache, _model_latent_dim, _style_axis_delta, _serif_centroid, _sans_centroid, _model_cache_mtime_ns
 
     if not MODEL_FILE.exists():
         raise FileNotFoundError(f"Model file not found: {MODEL_FILE}")
+
+    model_mtime_ns = MODEL_FILE.stat().st_mtime_ns
+
+    if _model_cache is not None and _model_cache_mtime_ns == model_mtime_ns:
+        import torch
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        return _model_cache, device
 
     import importlib.util
     spec = importlib.util.spec_from_file_location("train_vae", TRAIN_SCRIPT)
@@ -149,10 +159,27 @@ def _load_model():
     _model_latent_dim = latent_dim
 
     model = FontVAE(latent_dim=latent_dim).to(device)
-    model.load_state_dict(checkpoint["model_state_dict"])
+    model.load_state_dict(checkpoint["model_state_dict"], strict=False)
     model.eval()
 
+    style_axis = checkpoint.get("style_axis_delta")
+    serif_cent = checkpoint.get("serif_centroid")
+    sans_cent = checkpoint.get("sans_centroid")
+    _style_axis_delta = (
+        torch.tensor(style_axis, dtype=torch.float32, device=device).unsqueeze(0)
+        if style_axis is not None else None
+    )
+    _serif_centroid = (
+        torch.tensor(serif_cent, dtype=torch.float32, device=device).unsqueeze(0)
+        if serif_cent is not None else None
+    )
+    _sans_centroid = (
+        torch.tensor(sans_cent, dtype=torch.float32, device=device).unsqueeze(0)
+        if sans_cent is not None else None
+    )
+
     _model_cache = model
+    _model_cache_mtime_ns = model_mtime_ns
     return model, device
 
 
@@ -203,6 +230,21 @@ def _tensor_to_b64png(tensor) -> str:
     img.save(buf, format="PNG")
     b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
     return f"data:image/png;base64,{b64}"
+
+
+def _apply_style_shift(z, target_style: str, strength: float = 1.0):
+    """Apply serif/sans style shift in latent space when style axis exists."""
+    if _style_axis_delta is None:
+        return z
+
+    style = (target_style or "").strip().lower()
+    strength = max(0.0, min(float(strength), 2.0))
+
+    if style in {"serif"}:
+        return z + _style_axis_delta * strength
+    if style in {"sans", "sans-serif", "nons serif", "non-serif", "nonserif"}:
+        return z - _style_axis_delta * strength
+    return z
 
 
 # ---------------------------------------------------------------------------
@@ -342,7 +384,10 @@ def api_model_version_info(version: str) -> Response:
         info = registry["models"][version]
         
         # Try to load checkpoint metadata
-        model_path = MODELS_DIR / info.get("model_path", "")
+        model_ref = info.get("model_path") or info.get("model_file") or ""
+        model_path = Path(model_ref)
+        if not model_path.is_absolute():
+            model_path = MODELS_DIR / model_ref
         if model_path.exists():
             try:
                 import torch
@@ -376,21 +421,25 @@ def api_model_set(version: str) -> Response:
             return jsonify({"error": f"Model v{version} not found"}), 404
         
         model_info = registry["models"][version]
-        model_path = PROJECT_ROOT / model_info.get("model_path", "")
+        model_ref = model_info.get("model_path") or model_info.get("model_file") or ""
+        model_path = Path(model_ref)
+        if not model_path.is_absolute():
+            model_path = MODELS_DIR / model_ref
         
         if not model_path.exists():
             return jsonify({"error": f"Model file not found: {model_path}"}), 404
         
-        # Copy to default location
+        # Copy to active model location used by inference endpoints
         import shutil
-        default_path = MODELS_DIR / "font_vae_unified.pt"
-        shutil.copy2(model_path, default_path)
+        default_path = MODEL_FILE
+        if model_path.resolve() != default_path.resolve():
+            shutil.copy2(model_path, default_path)
         
         # Reset cache so next request loads new model
         _reset_model_cache()
         
         return jsonify({
-            "message": f"Activated model v{version}",
+            "message": f"Activated model {version}",
             "version": version,
             "path": str(default_path),
             "fonts": model_info.get("fonts", [])
@@ -534,6 +583,13 @@ def api_train_start() -> Response:
     batch_size = int(body.get("batch_size", 16))
     latent_dim = int(body.get("latent_dim", 64))
     beta       = float(body.get("beta", 1.0))
+    style_weight = float(body.get("style_weight", 0.5))
+    center_weight = float(body.get("center_weight", 0.05))
+    char_mode = str(body.get("char_mode", "unicode"))
+    max_chars_per_font = int(body.get("max_chars_per_font", 512))
+    min_codepoint = int(body.get("min_codepoint", 32))
+    max_codepoint = int(body.get("max_codepoint", 0x10FFFF))
+    include_private_use = bool(body.get("include_private_use", False))
 
     # For full training: download diverse fonts first, then train.
     # For quick mode: skip download, use whatever fonts are available.
@@ -544,8 +600,16 @@ def api_train_start() -> Response:
             "--batch-size", str(batch_size),
             "--latent-dim", str(latent_dim),
             "--beta",       str(beta),
+            "--style-weight", str(style_weight),
+            "--center-weight", str(center_weight),
+            "--char-mode", str(char_mode),
+            "--max-chars-per-font", str(max_chars_per_font),
+            "--min-codepoint", str(min_codepoint),
+            "--max-codepoint", str(max_codepoint),
             "--quick",
         ]
+        if include_private_use:
+            train_cmd.append("--include-private-use")
         pipeline_script = None
     else:
         # Shell pipeline: download_fonts.py && train_vae.py
@@ -558,6 +622,10 @@ def api_train_start() -> Response:
             f"{sys.executable} {TRAIN_SCRIPT} "
             f"--epochs {epochs} --batch-size {batch_size} "
             f"--latent-dim {latent_dim} --beta {beta} "
+            f"--style-weight {style_weight} --center-weight {center_weight} "
+            f"--char-mode {char_mode} --max-chars-per-font {max_chars_per_font} "
+            f"--min-codepoint {min_codepoint} --max-codepoint {max_codepoint} "
+            f"{'--include-private-use ' if include_private_use else ''}"
             f"--fonts-dir fonts/downloaded\n"
         )
         pipeline_script.chmod(0o755)
@@ -588,6 +656,8 @@ def api_train_start() -> Response:
         "pid":     _train_proc.pid,
         "quick":   quick,
         "epochs":  epochs,
+        "char_mode": char_mode,
+        "max_chars_per_font": max_chars_per_font,
     })
 
 
@@ -670,6 +740,8 @@ def api_generate_alphabet() -> Response:
     chars = body.get("chars", "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
     z_mod = body.get("latent_vector")
     ref_font_b64 = body.get("reference_font")
+    target_style = body.get("target_style")
+    style_strength = float(body.get("style_strength", 1.0))
 
     if not chars:
         return jsonify({"error": "chars is required"}), 400
@@ -724,11 +796,88 @@ def api_generate_alphabet() -> Response:
                 # No reference font: use pure latent vector
                 z = torch.tensor([z_mod], dtype=torch.float32, device=device)
 
+            if target_style:
+                z = _apply_style_shift(z, target_style=target_style, strength=style_strength)
+
             # Decode to image
             x_hat = model.decode(z)
             alphabet_images[char] = _tensor_to_b64png(x_hat[0])
 
     return jsonify({"alphabet": alphabet_images})
+
+
+@app.route("/api/style-transfer", methods=["POST"])
+def api_style_transfer() -> Response:
+    """Apply serif/sans style transfer to an uploaded font glyph."""
+    import tempfile
+    import torch
+    from PIL import Image as PILImage
+
+    try:
+        model, device = _load_model()
+    except FileNotFoundError as exc:
+        return jsonify({"error": str(exc)}), 404
+    except Exception as exc:
+        return jsonify({"error": f"Model load error: {exc}"}), 500
+
+    body = request.get_json(silent=True) or {}
+    font_b64 = body.get("font_data")
+    char = body.get("char", "A")
+    target_style = str(body.get("target_style", "")).strip().lower()
+    style_strength = float(body.get("style_strength", 1.0))
+
+    if not font_b64:
+        return jsonify({"error": "font_data (base64 TTF/OTF) is required"}), 400
+    if target_style not in {"serif", "sans", "sans-serif", "non-serif", "nonserif"}:
+        return jsonify({"error": "target_style must be one of: serif, sans"}), 400
+
+    try:
+        font_bytes = base64.b64decode(font_b64)
+    except Exception:
+        return jsonify({"error": "font_data is not valid base64"}), 400
+
+    with tempfile.NamedTemporaryFile(suffix=".ttf", delete=False) as tmp:
+        tmp.write(font_bytes)
+        tmp_path = tmp.name
+
+    try:
+        sdf = _render_glyph_tsdf(tmp_path, char)
+    finally:
+        os.unlink(tmp_path)
+
+    if sdf is None:
+        return jsonify({"error": f"Could not render '{char}' from this font."}), 400
+
+    src_inv = (255 - sdf * 255).clip(0, 255).astype("uint8")
+    src_img = PILImage.fromarray(src_inv, "L")
+    src_buf = io.BytesIO()
+    src_img.save(src_buf, "PNG")
+    source_image = "data:image/png;base64," + base64.b64encode(src_buf.getvalue()).decode()
+
+    tensor = torch.from_numpy(sdf).unsqueeze(0).unsqueeze(0).to(device)
+    with torch.no_grad():
+        mu, _ = model.encode(tensor)
+        z_t = _apply_style_shift(mu, target_style=target_style, strength=style_strength)
+        source_decoded = model.decode(mu)
+        styled_decoded = model.decode(z_t)
+
+        source_style_prob = None
+        if hasattr(model, "predict_style"):
+            style_logit = model.predict_style(mu)
+            source_style_prob = float(torch.sigmoid(style_logit).item())
+
+    return jsonify({
+        "char": char,
+        "target_style": target_style,
+        "style_strength": style_strength,
+        "source_image": source_image,
+        "reconstructed_image": _tensor_to_b64png(source_decoded[0]),
+        "styled_image": _tensor_to_b64png(styled_decoded[0]),
+        "source_latent": mu[0].detach().cpu().tolist(),
+        "styled_latent": z_t[0].detach().cpu().tolist(),
+        "source_serif_probability": source_style_prob,
+        "style_axis_available": _style_axis_delta is not None,
+    })
 
 
 # ---------------------------------------------------------------------------
