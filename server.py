@@ -224,7 +224,7 @@ def _tensor_to_b64png(tensor) -> str:
         arr = arr.squeeze(0)                   # (H, W)
     # Invert: glyph was HIGH (white) → make it LOW (black) on white bg
     arr_np = (255 - arr.numpy() * 255).clip(0, 255).astype("uint8")
-    img    = PILImage.fromarray(arr_np, mode="L")
+    img    = PILImage.fromarray(arr_np)
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -298,6 +298,16 @@ def api_model_info() -> Response:
         "version_detail":  None,
     }
 
+    active_version = None
+    registry_path = MODELS_DIR / "model_registry.json"
+    if registry_path.exists():
+        try:
+            with open(registry_path) as f:
+                reg = json.load(f)
+                active_version = reg.get("latest")
+        except Exception:
+            pass
+
     if model_ok:
         try:
             import torch
@@ -308,7 +318,7 @@ def api_model_info() -> Response:
             info["font_count"]     = ckpt.get("font_count")
             info["beta"]           = ckpt.get("beta")
             ver, detail = _infer_version(ckpt)
-            info["model_version"]  = ver
+            info["model_version"]  = active_version or ver
             info["version_detail"] = detail
         except Exception as exc:
             info["load_error"] = str(exc)
@@ -434,6 +444,11 @@ def api_model_set(version: str) -> Response:
         default_path = MODEL_FILE
         if model_path.resolve() != default_path.resolve():
             shutil.copy2(model_path, default_path)
+
+        # Persist active version for status/UI consistency.
+        registry["latest"] = version
+        with open(registry_path, "w", encoding="utf-8") as f:
+            json.dump(registry, f, indent=2)
         
         # Reset cache so next request loads new model
         _reset_model_cache()
@@ -535,7 +550,7 @@ def api_encode_font() -> Response:
 
     # Source glyph as ink-on-paper PNG (inverted so it's readable)
     src_inv = (255 - sdf * 255).clip(0, 255).astype("uint8")
-    src_img = PILImage.fromarray(src_inv, "L")
+    src_img = PILImage.fromarray(src_inv)
     buf = io.BytesIO()
     src_img.save(buf, "PNG")
     source_image = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
@@ -563,7 +578,34 @@ def api_encode_font() -> Response:
 
 @app.route("/api/train/status", methods=["GET"])
 def api_train_status() -> Response:
-    return jsonify(_read_status())
+    global _train_proc
+
+    status = _read_status()
+
+    if _train_proc is not None:
+        rc = _train_proc.poll()
+        if rc is None:
+            return jsonify(status)
+
+        # Process finished; clear handle and normalize final status.
+        _train_proc = None
+        if rc == 0:
+            if status.get("status") not in {"complete", "stopped"}:
+                status["status"] = "complete"
+                status["message"] = "Training complete."
+        else:
+            status["status"] = "error"
+            status["message"] = status.get("message") or f"Training process exited with code {rc}."
+        _write_status(status)
+        return jsonify(status)
+
+    # No process is running: heal stale "starting/training" states left from crashes/restarts.
+    if status.get("status") in {"starting", "training"}:
+        status["status"] = "stopped"
+        status["message"] = "Training is not running."
+        _write_status(status)
+
+    return jsonify(status)
 
 
 # ---------------------------------------------------------------------------
@@ -849,7 +891,7 @@ def api_style_transfer() -> Response:
         return jsonify({"error": f"Could not render '{char}' from this font."}), 400
 
     src_inv = (255 - sdf * 255).clip(0, 255).astype("uint8")
-    src_img = PILImage.fromarray(src_inv, "L")
+    src_img = PILImage.fromarray(src_inv)
     src_buf = io.BytesIO()
     src_img.save(src_buf, "PNG")
     source_image = "data:image/png;base64," + base64.b64encode(src_buf.getvalue()).decode()

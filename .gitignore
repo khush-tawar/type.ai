@@ -35,3 +35,10 @@ Thumbs.db
 
 # Large output files
 *.npy
+
+# Generated pipeline artifacts
+fonts/downloaded/
+fonts/models/
+models/_run_pipeline.sh
+models/font_vae.pt
+models/font_vae_unified.pt

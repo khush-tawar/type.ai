@@ -6,7 +6,7 @@ set -e
 cd "$(dirname "$0")"
 
 # Prefer project venv for consistent dependencies, fallback to system python3
-if [ -x "./.venv/bin/python" ]; then
+if [ -x "./.venv/bin/python" ] && "./.venv/bin/python" -c "import flask" >/dev/null 2>&1; then
 	PYTHON="./.venv/bin/python"
 else
 	PYTHON="/usr/bin/python3"
