@@ -13,6 +13,49 @@ const QUALITY_OPTIONS = [
   'Cursive',
 ]
 
+const QUALITY_REFERENCE_STYLES = {
+  'Sans Serif': {
+    fontFamily: 'Inter, Arial, sans-serif',
+    fontWeight: 700,
+  },
+  'Serif': {
+    fontFamily: 'Georgia, "Times New Roman", serif',
+    fontWeight: 500,
+  },
+  'Handwriting': {
+    fontFamily: '"Segoe Print", "Bradley Hand", "Comic Sans MS", cursive',
+    fontWeight: 500,
+    letterSpacing: '0.02em',
+  },
+  'Pixel': {
+    fontFamily: '"Courier New", "Lucida Console", monospace',
+    fontWeight: 700,
+    letterSpacing: '0.04em',
+  },
+  'Display': {
+    fontFamily: 'Impact, "Arial Black", sans-serif',
+    fontWeight: 700,
+    letterSpacing: '0.01em',
+  },
+  'Monospace': {
+    fontFamily: '"Courier New", "SFMono-Regular", Menlo, monospace',
+    fontWeight: 500,
+  },
+  'Calligraphy': {
+    fontFamily: '"Palatino Linotype", "Book Antiqua", Palatino, serif',
+    fontStyle: 'italic',
+    fontWeight: 500,
+  },
+  'Black Letter': {
+    fontFamily: '"Old English Text MT", "Lucida Blackletter", serif',
+    fontWeight: 700,
+  },
+  'Cursive': {
+    fontFamily: '"Brush Script MT", "Segoe Script", cursive',
+    fontWeight: 500,
+  },
+}
+
 const SCALES = [
   {
     key: 'structuralCorrectness',
@@ -217,6 +260,7 @@ export default function RatingPage({ stimulus, index, total, startTime, onComple
                 <div
                   key={option}
                   className="min-h-12 rounded-xl border border-slate-200 bg-white px-3 py-2 flex items-center justify-center text-center text-sm font-semibold text-slate-700 shadow-sm"
+                  style={QUALITY_REFERENCE_STYLES[option]}
                 >
                   {option}
                 </div>
