@@ -13,25 +13,6 @@
         <div class="header-left">
             <span class="logo-text">Font Analyzer</span>
         </div>
-        <div class="header-center">
-            <div class="model-selector-group">
-                <div class="selector-item">
-                    <label for="model-select">Model:</label>
-                    <select id="model-select" class="model-select" title="Select which trained model to use">
-                        <option value="">Loading models...</option>
-                    </select>
-                    <span id="model-status" class="selector-status"></span>
-                </div>
-                <div class="selector-divider"></div>
-                <div class="selector-item">
-                    <label for="font-select">Font:</label>
-                    <select id="font-select" class="font-select" title="Select which font to generate">
-                        <option value="">Loading fonts...</option>
-                    </select>
-                    <span id="font-status" class="selector-status"></span>
-                </div>
-            </div>
-        </div>
         <div class="header-right">
             <button id="themeToggle" class="icon-btn" title="Toggle theme">
                 <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
@@ -357,6 +338,24 @@
                         <div id="ai-model-status" class="ai-status-pill ai-status-idle">
                             <span class="ai-status-dot"></span><span id="ai-status-text">Checking…</span>
                         </div>
+                        <div class="model-selector-group ai-selector-group">
+                            <div class="selector-item">
+                                <label for="model-select">Model:</label>
+                                <select id="model-select" class="model-select" title="Select which trained model to use">
+                                    <option value="">Loading models...</option>
+                                </select>
+                                <span id="model-status" class="selector-status"></span>
+                            </div>
+                            <div class="selector-divider"></div>
+                            <div class="selector-item">
+                                <label for="font-select">Font:</label>
+                                <select id="font-select" class="font-select" title="Select which font to generate">
+                                    <option value="">Loading fonts...</option>
+                                </select>
+                                <span id="font-status" class="selector-status"></span>
+                            </div>
+                        </div>
+                        <div id="ai-source-note" class="ai-source-note">Model selection changes the checkpoint; font selection changes the glyph source.</div>
                     </div>
                     <div class="ai-header-right">
                         <button class="morph-action" id="ai-quick-train-btn">&#9193; Quick train</button>
@@ -384,6 +383,7 @@
                     <div class="ai-toolbar">
                         <input type="text" id="ai-char-input" value="A" maxlength="1" class="ai-char-input" title="Character to generate">
                         <button class="morph-action accent" id="ai-generate-btn">&#9654; Generate</button>
+                        <button class="morph-action" id="ai-reset-style-btn">Reset style</button>
                         <button class="morph-action" id="ai-random-btn">&#9685; Randomize</button>
                         <button class="morph-action" id="ai-alphabet-btn">&#8633; Alphabet</button>
                         <div class="ai-toolbar-sep"></div>
@@ -398,6 +398,13 @@
                             <div class="ai-canvas-wrap">
                                 <canvas id="ai-gen-canvas" width="320" height="320" class="ai-gen-canvas"></canvas>
                                 <div class="ai-canvas-hint" id="ai-canvas-hint">Click Generate &#8593;</div>
+                            </div>
+                            <div id="ai-source-glyph-panel" class="ai-source-glyph-panel" style="display:none">
+                                <div class="ai-source-glyph-title">Source glyph preview</div>
+                                <div class="ai-source-glyph-row">
+                                    <img id="ai-source-glyph-img" class="ai-source-glyph-img" alt="source glyph">
+                                    <div class="ai-source-glyph-note" id="ai-source-glyph-note"></div>
+                                </div>
                             </div>
                             <!-- Alphabet strip (shown when Alphabet clicked) -->
                             <div id="ai-alphabet-strip" class="ai-alphabet-strip" style="display:none"></div>
@@ -480,6 +487,14 @@
                                     <button class="morph-action accent" id="ai-encode-btn" disabled>&#8659; Encode Style</button>
                                 </label>
                                 <span id="ai-font-name" class="ai-font-name-label">No font selected</span>
+                            </div>
+                            <div class="ai-font-preview" id="ai-font-preview">
+                                <div class="ai-font-preview-box" id="ai-font-preview-box">
+                                    <span id="ai-font-preview-char">K</span>
+                                </div>
+                                <div class="ai-font-preview-meta">
+                                    <span id="ai-font-preview-name">Preview loads after choosing a font.</span>
+                                </div>
                             </div>
                             <div class="ai-grid-toolbar ai-style-transfer-toolbar">
                                 <label class="ai-label">Target style

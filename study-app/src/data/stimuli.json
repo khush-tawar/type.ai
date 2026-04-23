@@ -1,0 +1,198 @@
+{
+  "_schema_version": "1.0",
+  "_notes": "Place stimulus images in public/stimuli/. Set allow_drawing: true for ~30% of items. source_type is NEVER shown to participants.",
+  "stimuli": [
+    {
+      "id": "stim_ai_001",
+      "image_path": "/stimuli/ai_001.png",
+      "source_type": "ai",
+      "allow_drawing": true
+    },
+    {
+      "id": "stim_ai_002",
+      "image_path": "/stimuli/ai_002.png",
+      "source_type": "ai",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_ai_003",
+      "image_path": "/stimuli/ai_003.png",
+      "source_type": "ai",
+      "allow_drawing": true
+    },
+    {
+      "id": "stim_ai_004",
+      "image_path": "/stimuli/ai_004.png",
+      "source_type": "ai",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_ai_005",
+      "image_path": "/stimuli/ai_005.png",
+      "source_type": "ai",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_ai_006",
+      "image_path": "/stimuli/ai_006.png",
+      "source_type": "ai",
+      "allow_drawing": true
+    },
+    {
+      "id": "stim_ai_007",
+      "image_path": "/stimuli/ai_007.png",
+      "source_type": "ai",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_ai_008",
+      "image_path": "/stimuli/ai_008.png",
+      "source_type": "ai",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_pro_001",
+      "image_path": "/stimuli/pro_001.png",
+      "source_type": "professional",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_pro_002",
+      "image_path": "/stimuli/pro_002.png",
+      "source_type": "professional",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_pro_003",
+      "image_path": "/stimuli/pro_003.png",
+      "source_type": "professional",
+      "allow_drawing": true
+    },
+    {
+      "id": "stim_pro_004",
+      "image_path": "/stimuli/pro_004.png",
+      "source_type": "professional",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_pro_005",
+      "image_path": "/stimuli/pro_005.png",
+      "source_type": "professional",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_pro_006",
+      "image_path": "/stimuli/pro_006.png",
+      "source_type": "professional",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_pro_007",
+      "image_path": "/stimuli/pro_007.png",
+      "source_type": "professional",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_pro_008",
+      "image_path": "/stimuli/pro_008.png",
+      "source_type": "professional",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_hist_001",
+      "image_path": "/stimuli/hist_001.png",
+      "source_type": "historical",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_hist_002",
+      "image_path": "/stimuli/hist_002.png",
+      "source_type": "historical",
+      "allow_drawing": true
+    },
+    {
+      "id": "stim_hist_003",
+      "image_path": "/stimuli/hist_003.png",
+      "source_type": "historical",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_hist_004",
+      "image_path": "/stimuli/hist_004.png",
+      "source_type": "historical",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_hist_005",
+      "image_path": "/stimuli/hist_005.png",
+      "source_type": "historical",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_hist_006",
+      "image_path": "/stimuli/hist_006.png",
+      "source_type": "historical",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_hist_007",
+      "image_path": "/stimuli/hist_007.png",
+      "source_type": "historical",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_hist_008",
+      "image_path": "/stimuli/hist_008.png",
+      "source_type": "historical",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_ctrl_001",
+      "image_path": "/stimuli/ctrl_001.png",
+      "source_type": "control",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_ctrl_002",
+      "image_path": "/stimuli/ctrl_002.png",
+      "source_type": "control",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_ctrl_003",
+      "image_path": "/stimuli/ctrl_003.png",
+      "source_type": "control",
+      "allow_drawing": true
+    },
+    {
+      "id": "stim_ctrl_004",
+      "image_path": "/stimuli/ctrl_004.png",
+      "source_type": "control",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_ctrl_005",
+      "image_path": "/stimuli/ctrl_005.png",
+      "source_type": "control",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_ctrl_006",
+      "image_path": "/stimuli/ctrl_006.png",
+      "source_type": "control",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_ctrl_007",
+      "image_path": "/stimuli/ctrl_007.png",
+      "source_type": "control",
+      "allow_drawing": false
+    },
+    {
+      "id": "stim_ctrl_008",
+      "image_path": "/stimuli/ctrl_008.png",
+      "source_type": "control",
+      "allow_drawing": false
+    }
+  ]
+}

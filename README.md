@@ -24,6 +24,73 @@ python3 server.py
 
 ---
 
+## ☁️ Train On Colab, Use In App
+
+### A. Colab Setup
+
+1. Open a GPU notebook in Colab.
+2. Clone your repo and install dependencies:
+
+```bash
+!git clone https://github.com/<your-user>/<your-repo>.git
+%cd <your-repo>
+!pip install -r requirements.txt
+```
+
+3. Put your fonts into a folder (for example `fonts/downloaded`).
+4. Build precomputed training data:
+
+```bash
+!python scripts/build_training_data.py --fonts-dir fonts/downloaded --max-chars-per-font 768
+```
+
+5. Train:
+
+```bash
+!python scripts/train_vae.py --epochs 50 --batch-size 24 --latent-dim 64 --beta 1.0 --style-weight 0.6 --center-weight 0.08 --char-mode unicode --max-chars-per-font 768
+```
+
+### B. Download Artifacts From Colab
+
+Download these from Colab after training:
+
+- `models/font_vae3.pt`
+- `models/font_vae.pt`
+- `models/font_vae_unified.pt`
+- `models/model_registry.json`
+- `models/versions/` (entire folder)
+
+### C. Copy Artifacts Into Local App
+
+On your local machine, place the files in the same paths inside this project.
+
+Then start or restart the app server:
+
+```bash
+./run_server.sh
+```
+
+### D. Verify In The App
+
+1. Open the app at `http://localhost:5001`.
+2. Check model list endpoint:
+
+```bash
+curl http://localhost:5001/api/models/list
+```
+
+3. In the app header, choose your new model from the Model dropdown.
+4. Generate with different characters (A/B/C/Z) and confirm source preview + output both change.
+
+### E. If Model Does Not Show Up
+
+- Ensure `models/model_registry.json` includes your new version.
+- Ensure the version file exists under `models/versions/<version>/font_vae.pt`.
+- Ensure `models/font_vae3.pt` exists (server default active model file).
+- Restart server after replacing files.
+
+---
+
 ## 📖 Documentation
 
 | Document | Purpose |

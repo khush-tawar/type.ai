@@ -13,6 +13,9 @@ const AIGenerator = (() => {
 
     let pollTimer  = null;
     let latentDim  = 32;
+    let previewFontFace = null;
+    let previewFontUrl = null;
+    let previewFontFileName = '';
 
     // ── DOM helper ────────────────────────────────────────────
     const $ = id => document.getElementById(id);
@@ -237,6 +240,63 @@ const AIGenerator = (() => {
         return z;
     }
 
+    function getSelectedFontName() {
+        if (window.ModelManager && typeof window.ModelManager.getCurrentFont === 'function') {
+            return window.ModelManager.getCurrentFont() || '';
+        }
+        return '';
+    }
+
+    async function updateFontPreview(file, charValue) {
+        const previewBox = $('ai-font-preview-box');
+        const previewChar = $('ai-font-preview-char');
+        const previewName = $('ai-font-preview-name');
+        if (!previewBox || !previewChar || !previewName) return;
+
+        if (previewFontUrl) {
+            URL.revokeObjectURL(previewFontUrl);
+            previewFontUrl = null;
+        }
+        if (previewFontFace && previewFontFace.family) {
+            try {
+                document.fonts.delete(previewFontFace);
+            } catch (_) {}
+        }
+        previewFontFace = null;
+
+        const previewCharValue = (charValue || $('ai-encode-char')?.value || 'K').trim().slice(0, 1) || 'K';
+        previewChar.textContent = previewCharValue;
+        previewBox.classList.add('is-loading');
+        previewBox.style.fontFamily = 'inherit';
+        previewName.textContent = file
+            ? `Loading preview for ${file.name}…`
+            : 'Preview loads after choosing a font.';
+
+        if (!file) {
+            previewBox.classList.remove('is-loading');
+            return;
+        }
+
+        try {
+            previewFontFileName = file.name;
+            const family = `ai-preview-${Date.now()}`;
+            const url = URL.createObjectURL(file);
+            const face = new FontFace(family, `url(${url})`);
+            await face.load();
+            document.fonts.add(face);
+            previewFontFace = face;
+            previewFontUrl = url;
+            previewBox.style.fontFamily = `'${family}', serif`;
+            previewBox.classList.remove('is-loading');
+            previewName.textContent = `${file.name} preview for '${previewCharValue}'`;
+        } catch (error) {
+            previewBox.classList.remove('is-loading');
+            previewBox.style.fontFamily = 'inherit';
+            previewName.textContent = `Could not preview ${file.name}. You can still encode it.`;
+            console.error('[AIGenerator] Font preview error:', error);
+        }
+    }
+
     function randomizeSliders() {
         const n = Math.min(latentDim, 12);
         for (let i = 0; i < n; i++) {
@@ -246,6 +306,17 @@ const AIGenerator = (() => {
             const val = ((Math.random() - 0.5) * 4).toFixed(2);
             s.value = val;
             if (v) v.textContent = parseFloat(val).toFixed(1);
+        }
+    }
+
+    function resetSliders() {
+        const n = Math.min(latentDim, 12);
+        for (let i = 0; i < n; i++) {
+            const s = $(`ai-z${i}`);
+            const v = $(`ai-zv${i}`);
+            if (!s) continue;
+            s.value = '0';
+            if (v) v.textContent = '0.0';
         }
     }
 
@@ -360,8 +431,28 @@ const AIGenerator = (() => {
         const btn = $('ai-generate-btn');
         if (btn) btn.disabled = true;
         try {
-            const result = await post('/api/generate', { latent_vector: getZ() });
+            const char = (($('ai-char-input')?.value || 'A').trim() || 'A')[0];
+            const result = await post('/api/generate-conditioned', {
+                char,
+                font_name: getSelectedFontName(),
+                latent_delta: getZ(),
+                target_style: $('ai-target-style')?.value || undefined,
+                style_strength: parseFloat($('ai-style-strength')?.value || '1'),
+                delta_scale: 0.25,
+                preserve_char_strength: 0.65,
+            });
             renderToCanvas(result.image, $('ai-gen-canvas'), true);
+            const sourcePanel = $('ai-source-glyph-panel');
+            const sourceImg = $('ai-source-glyph-img');
+            const sourceNote = $('ai-source-glyph-note');
+            if (sourcePanel && sourceImg) {
+                sourcePanel.style.display = '';
+                sourceImg.src = result.source_image || '';
+                if (sourceNote) {
+                    const sourceMode = result.source_mode ? ` from ${result.source_mode}` : '';
+                    sourceNote.textContent = `Character ${char}${sourceMode}. This is the source glyph used before the model decodes a variation.`;
+                }
+            }
             // Hide the "Click generate" hint
             const hint = $('ai-canvas-hint');
             if (hint) hint.classList.add('hidden');
@@ -412,8 +503,11 @@ const AIGenerator = (() => {
             const result = await post('/api/generate-alphabet', {
                 latent_vector: z,
                 chars: chars,
+                font_name: getSelectedFontName(),
                 target_style: targetStyle,
                 style_strength: styleStrength,
+                delta_scale: 0.25,
+                preserve_char_strength: 0.65,
                 // Optionally could pass reference_font here, but let's use default for now
             });
 
@@ -541,6 +635,7 @@ const AIGenerator = (() => {
         on('ai-quick-train-btn', () => startTraining(true));
         on('ai-stop-btn',        () => post('/api/train/stop', {}).catch(() => {}));
         on('ai-generate-btn',    generate);
+        on('ai-reset-style-btn', () => { resetSliders(); generate(); });
         on('ai-random-btn',      () => { randomizeSliders(); generate(); });
         on('ai-alphabet-btn',    generateAlphabet);
         on('ai-grid-btn',        generateGrid);
@@ -562,6 +657,19 @@ const AIGenerator = (() => {
                 if (lbl)    lbl.textContent = name || 'No font selected';
                 if (encBtn) encBtn.disabled = !name;
                 if (trfBtn) trfBtn.disabled = !name;
+                updateFontPreview(fileInput.files?.[0] || null, $('ai-encode-char')?.value || 'K');
+            });
+        }
+
+        const encodeChar = $('ai-encode-char');
+        if (encodeChar) {
+            encodeChar.addEventListener('input', () => {
+                if (fileInput?.files?.[0]) {
+                    updateFontPreview(fileInput.files[0], encodeChar.value || 'K');
+                } else {
+                    const previewChar = $('ai-font-preview-char');
+                    if (previewChar) previewChar.textContent = (encodeChar.value || 'K').trim().slice(0, 1) || 'K';
+                }
             });
         }
 
@@ -597,6 +705,17 @@ const AIGenerator = (() => {
     function on(id, fn) {
         const el = document.getElementById(id);
         if (el) el.addEventListener('click', fn);
+    }
+
+    function onModelChanged() {
+        checkStatus();
+    }
+
+    function onFontChanged(fontName) {
+        const tag = $('ai-font-name');
+        if (tag && fontName) {
+            tag.textContent = `Selected dataset/downloaded font: ${fontName}`;
+        }
     }
 
     // ── Utils ─────────────────────────────────────────────────
@@ -705,7 +824,7 @@ const AIGenerator = (() => {
         }
     }
 
-    return { init, checkStatus };
+    return { init, checkStatus, onModelChanged, onFontChanged };
 })();
 
 // Init on load + re-check status when tab is switched to

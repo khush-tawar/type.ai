@@ -1,5 +1,5 @@
 {
-  "status": "starting",
+  "status": "stopped",
   "epoch": 20,
   "total_epochs": 20,
   "loss": 878.8506,
@@ -76,6 +76,6 @@
       16.149
     ]
   },
-  "message": "Downloading fonts\u2026",
+  "message": "Training is not running.",
   "stop_requested": true
 }

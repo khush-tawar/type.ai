@@ -15,6 +15,8 @@ const ModelManager = (() => {
     currentFont: null,
     models: [],
     fonts: [],
+    datasetFonts: [],
+    downloadedFonts: [],
     loading: false
   };
 
@@ -84,17 +86,23 @@ const ModelManager = (() => {
         return;
       }
 
+      const latest = data.latest || state.models[0]?.version || null;
+
       // Add models to select
       state.models.forEach((model, idx) => {
         const option = document.createElement('option');
         option.value = model.version;
-        option.textContent = `${model.version} (${new Date(model.created_at).toLocaleDateString()})`;
-        if (idx === 0) option.selected = true;
+        const created = model.created_at ? new Date(model.created_at) : null;
+        const hasDate = created && !Number.isNaN(created.getTime());
+        option.textContent = hasDate
+          ? `${model.version} (${created.toLocaleDateString()})`
+          : model.version;
+        if (model.version === latest || (idx === 0 && !latest)) option.selected = true;
         select.appendChild(option);
       });
 
       // Set current model to latest
-      state.currentModel = state.models[0]?.version || null;
+      state.currentModel = latest;
       
       if (status) {
         status.textContent = `${state.models.length} available`;
@@ -130,6 +138,8 @@ const ModelManager = (() => {
       }
       const data = await response.json();
 
+      state.datasetFonts = data.dataset_font_names || [];
+      state.downloadedFonts = data.downloaded_font_families || [];
       state.fonts = data.font_names || [];
       
       // Clear existing options
@@ -150,10 +160,18 @@ const ModelManager = (() => {
       }
 
       // Add fonts to select
+      const datasetSet = new Set(state.datasetFonts);
+      const downloadedSet = new Set(state.downloadedFonts);
       state.fonts.forEach((font, idx) => {
         const option = document.createElement('option');
         option.value = font;
-        option.textContent = font;
+        if (datasetSet.has(font)) {
+          option.textContent = `${font} [dataset]`;
+        } else if (downloadedSet.has(font)) {
+          option.textContent = `${font} [downloaded]`;
+        } else {
+          option.textContent = font;
+        }
         if (idx === 0) option.selected = true;
         select.appendChild(option);
       });
@@ -162,8 +180,25 @@ const ModelManager = (() => {
       state.currentFont = state.fonts[0] || null;
       
       if (status) {
-        status.textContent = `${state.fonts.length} available`;
+        const datasetCount = state.datasetFonts.length;
+        const downloadedCount = state.downloadedFonts.length;
+        if (state.fonts.length <= 1) {
+          status.textContent = `${state.fonts.length} source available · add more fonts to unlock variation`;
+        } else {
+          status.textContent = `${state.fonts.length} total · ${datasetCount} dataset · ${downloadedCount} downloaded`;
+        }
         status.className = 'selector-status active';
+      }
+
+      const sourceNote = document.getElementById('ai-source-note');
+      if (sourceNote) {
+        const modelCount = state.models.length;
+        const sourceCount = state.fonts.length;
+        if (sourceCount <= 1) {
+          sourceNote.textContent = `${modelCount} checkpoint${modelCount === 1 ? '' : 's'} are available, but only ${sourceCount} font source${sourceCount === 1 ? '' : 's'} can drive generation.`;
+        } else {
+          sourceNote.textContent = `${modelCount} checkpoint${modelCount === 1 ? '' : 's'} available. ${sourceCount} font sources can drive generation.`;
+        }
       }
 
       console.log(`[ModelManager] Loaded ${state.fonts.length} fonts`);
@@ -205,6 +240,9 @@ const ModelManager = (() => {
       if (window.AIGenerator && window.AIGenerator.onModelChanged) {
         window.AIGenerator.onModelChanged(version);
       }
+
+      // Refresh status so the active checkpoint is reflected after a switch.
+      await loadModels();
       
       return true;
     } catch (error) {
@@ -270,6 +308,7 @@ const ModelManager = (() => {
     console.error('[ModelManager]', message);
     const modelStatus = document.getElementById('model-status');
     const fontStatus = document.getElementById('font-status');
+    const sourceNote = document.getElementById('ai-source-note');
     if (modelStatus && !state.models.length) {
       modelStatus.textContent = 'API offline';
       modelStatus.className = 'selector-status';
@@ -277,6 +316,9 @@ const ModelManager = (() => {
     if (fontStatus && !state.fonts.length) {
       fontStatus.textContent = 'API offline';
       fontStatus.className = 'selector-status';
+    }
+    if (sourceNote) {
+      sourceNote.textContent = 'Backend offline: model checkpoints and font sources are unavailable.';
     }
   };
 
@@ -321,4 +363,8 @@ if (document.readyState === 'loading') {
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = ModelManager;
+}
+
+if (typeof window !== 'undefined') {
+  window.ModelManager = ModelManager;
 }

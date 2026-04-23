@@ -15,6 +15,7 @@ import base64
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -38,6 +39,7 @@ STATUS_FILE  = MODELS_DIR / "training_status.json"
 MODEL_FILE   = MODELS_DIR / "font_vae3.pt"
 TRAIN_SCRIPT    = PROJECT_ROOT / "scripts" / "train_vae.py"
 DOWNLOAD_SCRIPT = PROJECT_ROOT / "scripts" / "download_fonts.py"
+BUILD_DATASET_SCRIPT = PROJECT_ROOT / "scripts" / "build_training_data.py"
 DOWNLOADED_FONTS_DIR = PROJECT_ROOT / "fonts" / "downloaded"
 DATASET_DIR  = PROJECT_ROOT / "training_data"
 
@@ -208,6 +210,36 @@ def _write_status(data: dict) -> None:
     tmp.replace(STATUS_FILE)
 
 
+def _current_training_status() -> dict:
+    """Return the latest training state, healing stale flags after restarts."""
+    global _train_proc
+
+    status = _read_status()
+
+    if _train_proc is not None:
+        rc = _train_proc.poll()
+        if rc is None:
+            return status
+
+        _train_proc = None
+        if rc == 0:
+            if status.get("status") not in {"complete", "stopped"}:
+                status["status"] = "complete"
+                status["message"] = "Training complete."
+        else:
+            status["status"] = "error"
+            status["message"] = status.get("message") or f"Training process exited with code {rc}."
+        _write_status(status)
+        return status
+
+    if status.get("status") in {"starting", "training"}:
+        status["status"] = "stopped"
+        status["message"] = "Training is not running."
+        _write_status(status)
+
+    return status
+
+
 # ---------------------------------------------------------------------------
 # Image helpers
 # ---------------------------------------------------------------------------
@@ -219,11 +251,21 @@ def _tensor_to_b64png(tensor) -> str:
     import torch
     from PIL import Image as PILImage
 
+    import numpy as np
+
     arr = tensor.detach().cpu()
     if arr.dim() == 3:
         arr = arr.squeeze(0)                   # (H, W)
+
+    arr_np = arr.numpy().astype("float32")
+    lo = float(np.percentile(arr_np, 1.0))
+    hi = float(np.percentile(arr_np, 99.0))
+    if hi - lo > 1e-6:
+        arr_np = (arr_np - lo) / (hi - lo)
+    arr_np = np.clip(arr_np, 0.0, 1.0)
+
     # Invert: glyph was HIGH (white) → make it LOW (black) on white bg
-    arr_np = (255 - arr.numpy() * 255).clip(0, 255).astype("uint8")
+    arr_np = (255 - arr_np * 255).clip(0, 255).astype("uint8")
     img    = PILImage.fromarray(arr_np)
 
     buf = io.BytesIO()
@@ -247,6 +289,84 @@ def _apply_style_shift(z, target_style: str, strength: float = 1.0):
     return z
 
 
+def _resolve_reference_font_path(font_name: str) -> Optional[Path]:
+    """Resolve a font name/key to a concrete font file path under downloaded fonts."""
+    if not font_name:
+        return None
+
+    normalized = re.sub(r"[^a-z0-9]+", "", font_name.lower())
+
+    # Accept direct relative path from downloaded root
+    candidate = DOWNLOADED_FONTS_DIR / font_name
+    if candidate.is_file() and candidate.suffix.lower() in {".ttf", ".otf"}:
+        return candidate
+
+    # Match by folder key or contained font filename stem
+    for path in DOWNLOADED_FONTS_DIR.rglob("*"):
+        if not path.is_file() or path.suffix.lower() not in {".ttf", ".otf"}:
+            continue
+        stem_norm = re.sub(r"[^a-z0-9]+", "", path.stem.lower())
+        parent_norm = re.sub(r"[^a-z0-9]+", "", str(path.parent.name).lower())
+        if normalized and (normalized == stem_norm or normalized == parent_norm):
+            return path
+        lowered = font_name.lower()
+        if lowered in path.stem.lower() or lowered in str(path.parent.name).lower():
+            return path
+    return None
+
+
+def _load_precomputed_sdf(font_key: str, char: str):
+    """Load a precomputed 64x64 glyph from training_data/<font_key>/glyphs.npz."""
+    if not font_key or not char:
+        return None
+
+    import numpy as np
+
+    npz_path = DATASET_DIR / font_key / "glyphs.npz"
+    if not npz_path.exists():
+        normalized = re.sub(r"[^a-z0-9]+", "", font_key.lower())
+        for font_dir in DATASET_DIR.iterdir() if DATASET_DIR.exists() else []:
+            if not font_dir.is_dir():
+                continue
+            candidate_npz = font_dir / "glyphs.npz"
+            if not candidate_npz.exists():
+                continue
+            candidate_norm = re.sub(r"[^a-z0-9]+", "", font_dir.name.lower())
+            if normalized and normalized == candidate_norm:
+                npz_path = candidate_npz
+                break
+            meta_path = font_dir / "meta.json"
+            if not meta_path.exists():
+                continue
+            try:
+                meta = json.loads(meta_path.read_text())
+                meta_name = re.sub(r"[^a-z0-9]+", "", str(meta.get("font_name", "")).lower())
+                if normalized and normalized == meta_name:
+                    npz_path = candidate_npz
+                    break
+            except Exception:
+                continue
+        if not npz_path.exists():
+            return None
+
+    codepoint = ord(char)
+    try:
+        with np.load(npz_path, allow_pickle=False) as data:
+            glyphs = data.get("glyphs")
+            cps = data.get("codepoints")
+            if glyphs is None or cps is None:
+                return None
+            idx = np.where(cps == codepoint)[0]
+            if idx.size == 0:
+                return None
+            sdf = np.asarray(glyphs[int(idx[0])], dtype="float32")
+            if sdf.shape != (64, 64):
+                return None
+            return sdf
+    except Exception:
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Training subprocess management
 # ---------------------------------------------------------------------------
@@ -259,6 +379,38 @@ def _is_training() -> bool:
     if _train_proc is None:
         return False
     return _train_proc.poll() is None   # None → still running
+
+
+def _find_external_training_pids() -> list[int]:
+    """Find running train_vae processes that were not spawned by this server instance."""
+    try:
+        result = subprocess.run(
+            ["pgrep", "-f", "scripts/train_vae.py"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            return []
+        current_pid = os.getpid()
+        known_pid = _train_proc.pid if _train_proc is not None else None
+        pids: list[int] = []
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                pid = int(line)
+            except ValueError:
+                continue
+            if pid == current_pid:
+                continue
+            if known_pid is not None and pid == known_pid:
+                continue
+            pids.append(pid)
+        return pids
+    except Exception:
+        return []
 
 
 # ---------------------------------------------------------------------------
@@ -284,7 +436,7 @@ def serve_static(filename: str) -> Response:
 
 @app.route("/api/model-info", methods=["GET"])
 def api_model_info() -> Response:
-    status   = _read_status()
+    status   = _current_training_status()
     model_ok = MODEL_FILE.exists()
 
     info: dict = {
@@ -467,18 +619,35 @@ def api_model_set(version: str) -> Response:
 def api_pipeline_status() -> Response:
     """Get overall pipeline status: fonts, models, readiness."""
     try:
-        # Count fonts
-        fonts = {}
+        # Count dataset fonts
+        dataset_fonts = {}
         training_data_dir = DATASET_DIR
         if training_data_dir.exists():
             for font_dir in training_data_dir.iterdir():
                 if font_dir.is_dir() and not font_dir.name.startswith('.'):
                     meta_file = font_dir / "meta.json"
                     if meta_file.exists():
-                        fonts[font_dir.name] = True
+                        dataset_fonts[font_dir.name] = True
+
+        # Count downloaded raw font files/families
+        downloaded_files = []
+        downloaded_families = set()
+        if DOWNLOADED_FONTS_DIR.exists():
+            for p in DOWNLOADED_FONTS_DIR.rglob("*"):
+                if p.is_file() and p.suffix.lower() in {".ttf", ".otf"}:
+                    downloaded_files.append(p)
+                    # When files are nested, use folder name as source family.
+                    # When files are directly under downloaded/, expose file stem as a source.
+                    if p.parent != DOWNLOADED_FONTS_DIR:
+                        downloaded_families.add(p.parent.name)
+                    else:
+                        downloaded_families.add(p.stem)
+
+        all_font_names = sorted(list(dataset_fonts.keys() | downloaded_families))
         
         # Load model registry
         registry_path = MODELS_DIR / "model_registry.json"
+        registry = {"models": {}}
         latest_model = None
         if registry_path.exists():
             with open(registry_path) as f:
@@ -486,13 +655,16 @@ def api_pipeline_status() -> Response:
                 latest_model = registry.get("latest")
         
         return jsonify({
-            "fonts_collected": len(fonts),
-            "font_names": list(fonts.keys()),
+            "fonts_collected": len(dataset_fonts),
+            "font_names": all_font_names,
+            "dataset_font_names": sorted(list(dataset_fonts.keys())),
+            "downloaded_font_families": sorted(list(downloaded_families)),
+            "downloaded_font_files": len(downloaded_files),
             "models_available": len([m for m in registry.get("models", {}).values() 
                                     if m.get("status") == "active"]) if registry_path.exists() else 0,
             "latest_model": latest_model,
             "manifest_exists": (DATASET_DIR / "training_manifest.json").exists(),
-            "ready_for_training": len(fonts) > 0 and (DATASET_DIR / "training_manifest.json").exists()
+            "ready_for_training": len(dataset_fonts) > 0 and (DATASET_DIR / "training_manifest.json").exists()
         })
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
@@ -578,34 +750,7 @@ def api_encode_font() -> Response:
 
 @app.route("/api/train/status", methods=["GET"])
 def api_train_status() -> Response:
-    global _train_proc
-
-    status = _read_status()
-
-    if _train_proc is not None:
-        rc = _train_proc.poll()
-        if rc is None:
-            return jsonify(status)
-
-        # Process finished; clear handle and normalize final status.
-        _train_proc = None
-        if rc == 0:
-            if status.get("status") not in {"complete", "stopped"}:
-                status["status"] = "complete"
-                status["message"] = "Training complete."
-        else:
-            status["status"] = "error"
-            status["message"] = status.get("message") or f"Training process exited with code {rc}."
-        _write_status(status)
-        return jsonify(status)
-
-    # No process is running: heal stale "starting/training" states left from crashes/restarts.
-    if status.get("status") in {"starting", "training"}:
-        status["status"] = "stopped"
-        status["message"] = "Training is not running."
-        _write_status(status)
-
-    return jsonify(status)
+    return jsonify(_current_training_status())
 
 
 # ---------------------------------------------------------------------------
@@ -618,6 +763,14 @@ def api_train_start() -> Response:
 
     if _is_training():
         return jsonify({"error": "Training is already running."}), 409
+
+    external_pids = _find_external_training_pids()
+    if external_pids:
+        return jsonify({
+            "error": "Another training process is already running outside this server.",
+            "running_pids": external_pids,
+            "hint": "Stop the existing train_vae.py process before starting a new one.",
+        }), 409
 
     body       = request.get_json(silent=True) or {}
     quick      = bool(body.get("quick", False))
@@ -661,6 +814,10 @@ def api_train_start() -> Response:
         pipeline_script.write_text(
             f"#!/bin/bash\nset -e\n"
             f"{sys.executable} {DOWNLOAD_SCRIPT} --dest fonts/downloaded\n"
+            f"{sys.executable} {BUILD_DATASET_SCRIPT} --fonts-dir fonts/downloaded "
+            f"--max-chars-per-font {max_chars_per_font} --min-codepoint {min_codepoint} "
+            f"--max-codepoint {max_codepoint} "
+            f"{'--include-private-use ' if include_private_use else ''}\n"
             f"{sys.executable} {TRAIN_SCRIPT} "
             f"--epochs {epochs} --batch-size {batch_size} "
             f"--latent-dim {latent_dim} --beta {beta} "
@@ -668,7 +825,7 @@ def api_train_start() -> Response:
             f"--char-mode {char_mode} --max-chars-per-font {max_chars_per_font} "
             f"--min-codepoint {min_codepoint} --max-codepoint {max_codepoint} "
             f"{'--include-private-use ' if include_private_use else ''}"
-            f"--fonts-dir fonts/downloaded\n"
+            f"\n"
         )
         pipeline_script.chmod(0o755)
         train_cmd = ["bash", str(pipeline_script)]
@@ -753,6 +910,92 @@ def api_generate() -> Response:
     })
 
 
+@app.route("/api/generate-conditioned", methods=["POST"])
+def api_generate_conditioned() -> Response:
+    """Generate a glyph conditioned on a specific character and reference font.
+
+    Body (JSON):
+        char: single character to preserve
+        font_name: training_data key or downloaded font family/name
+        latent_delta: optional style delta vector from sliders
+        target_style: optional serif/sans style shift
+        style_strength: float strength (default 1.0)
+    """
+    try:
+        import torch
+        model, device = _load_model()
+    except FileNotFoundError as exc:
+        return jsonify({"error": str(exc)}), 404
+    except Exception as exc:
+        return jsonify({"error": f"Model load error: {exc}"}), 500
+
+    body = request.get_json(silent=True) or {}
+    char = str(body.get("char", "A"))[:1] or "A"
+    font_name = str(body.get("font_name", ""))
+    z_delta_in = body.get("latent_delta")
+    target_style = body.get("target_style")
+    style_strength = float(body.get("style_strength", 1.0))
+    delta_scale = float(body.get("delta_scale", 0.25))
+    preserve_char_strength = float(body.get("preserve_char_strength", 0.65))
+
+    delta_scale = max(0.0, min(delta_scale, 1.0))
+    preserve_char_strength = max(0.0, min(preserve_char_strength, 1.0))
+
+    if z_delta_in is None:
+        z_delta_in = [0.0] * _model_latent_dim
+
+    try:
+        z_delta = list(z_delta_in)[:_model_latent_dim]
+        z_delta += [0.0] * (_model_latent_dim - len(z_delta))
+    except Exception:
+        return jsonify({"error": "Invalid latent_delta"}), 400
+
+    source_sdf = _load_precomputed_sdf(font_name, char)
+    source_mode = "training_data"
+
+    if source_sdf is None:
+        source_font_path = _resolve_reference_font_path(font_name)
+        if source_font_path is not None:
+            source_sdf = _render_glyph_tsdf(str(source_font_path), char)
+            source_mode = "downloaded_font"
+
+    if source_sdf is None:
+        return jsonify({
+            "error": f"Could not resolve character '{char}' from font '{font_name}'.",
+            "hint": "Use a collected dataset font key or a downloaded font family that contains this character.",
+        }), 400
+
+    import numpy as np
+    from PIL import Image as PILImage
+
+    src_inv = (255 - np.asarray(source_sdf, dtype="float32") * 255).clip(0, 255).astype("uint8")
+    src_img = PILImage.fromarray(src_inv)
+    src_buf = io.BytesIO()
+    src_img.save(src_buf, "PNG")
+    source_image = "data:image/png;base64," + base64.b64encode(src_buf.getvalue()).decode()
+
+    with torch.no_grad():
+        tensor = torch.from_numpy(source_sdf).unsqueeze(0).unsqueeze(0).to(device)
+        mu, _ = model.encode(tensor)
+        z_delta_t = torch.tensor([z_delta], dtype=torch.float32, device=device)
+        z = mu + delta_scale * z_delta_t
+        if target_style:
+            z = _apply_style_shift(z, target_style=target_style, strength=style_strength)
+        decoded = model.decode(z)
+        x_hat = decoded * (1.0 - preserve_char_strength) + tensor * preserve_char_strength
+
+    return jsonify({
+        "char": char,
+        "font_name": font_name,
+        "source_mode": source_mode,
+        "source_image": source_image,
+        "image": _tensor_to_b64png(x_hat[0]),
+        "latent_vector": z.squeeze(0).detach().cpu().tolist(),
+        "delta_scale": delta_scale,
+        "preserve_char_strength": preserve_char_strength,
+    })
+
+
 # ---------------------------------------------------------------------------
 # API – generate alphabet (with character-specific glyphs from reference font)
 # ---------------------------------------------------------------------------
@@ -782,8 +1025,14 @@ def api_generate_alphabet() -> Response:
     chars = body.get("chars", "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
     z_mod = body.get("latent_vector")
     ref_font_b64 = body.get("reference_font")
+    font_name = str(body.get("font_name", ""))
     target_style = body.get("target_style")
     style_strength = float(body.get("style_strength", 1.0))
+    delta_scale = float(body.get("delta_scale", 0.25))
+    preserve_char_strength = float(body.get("preserve_char_strength", 0.65))
+
+    delta_scale = max(0.0, min(delta_scale, 1.0))
+    preserve_char_strength = max(0.0, min(preserve_char_strength, 1.0))
 
     if not chars:
         return jsonify({"error": "chars is required"}), 400
@@ -806,6 +1055,7 @@ def api_generate_alphabet() -> Response:
 
     with torch.no_grad():
         for char in chars:
+            tensor = None
             # If reference font provided, encode this character's glyph
             if ref_font_b64:
                 try:
@@ -833,16 +1083,31 @@ def api_generate_alphabet() -> Response:
 
                     # Apply modifier
                     z_mod_tensor = torch.tensor([z_mod], dtype=torch.float32, device=device)
-                    z = z + z_mod_tensor * 0.5  # Scale modifier for subtlety
+                    z = z + z_mod_tensor * delta_scale
             else:
-                # No reference font: use pure latent vector
-                z = torch.tensor([z_mod], dtype=torch.float32, device=device)
+                sdf = _load_precomputed_sdf(font_name, char)
+                if sdf is None:
+                    font_path = _resolve_reference_font_path(font_name)
+                    if font_path is not None:
+                        sdf = _render_glyph_tsdf(str(font_path), char)
+
+                if sdf is not None:
+                    tensor = torch.from_numpy(sdf).unsqueeze(0).unsqueeze(0).to(device)
+                    mu, _ = model.encode(tensor)
+                    z = mu + torch.tensor([z_mod], dtype=torch.float32, device=device) * delta_scale
+                else:
+                    # No resolvable source glyph: fallback to pure latent vector.
+                    z = torch.tensor([z_mod], dtype=torch.float32, device=device)
 
             if target_style:
                 z = _apply_style_shift(z, target_style=target_style, strength=style_strength)
 
             # Decode to image
-            x_hat = model.decode(z)
+            decoded = model.decode(z)
+            if tensor is not None and tensor.shape == decoded.shape:
+                x_hat = decoded * (1.0 - preserve_char_strength) + tensor * preserve_char_strength
+            else:
+                x_hat = decoded
             alphabet_images[char] = _tensor_to_b64png(x_hat[0])
 
     return jsonify({"alphabet": alphabet_images})

@@ -12,8 +12,10 @@ python scripts/train_vae.py [--epochs N] [--batch-size B]
 """
 
 import argparse
+import datetime
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -149,6 +151,7 @@ class FontDataset(Dataset):
         self.samples: List[Tuple[np.ndarray, float]] = []
         self.style_counts: Dict[str, int] = {"sans": 0, "serif": 0}
         self.style_sample_counts: Dict[str, int] = {"sans": 0, "serif": 0}
+        self.font_names: List[str] = []
 
         font_charsets: Dict[str, str] = {}
         total = 0
@@ -176,6 +179,7 @@ class FontDataset(Dataset):
 
         for fp in font_paths:
             label = float(_infer_style_label(fp))
+            self.font_names.append(Path(fp).stem)
             if label > 0.5:
                 self.style_counts["serif"] += 1
             else:
@@ -213,6 +217,7 @@ class PrecomputedGlyphDataset(Dataset):
         self.samples: List[Tuple[np.ndarray, float]] = []
         self.style_counts: Dict[str, int] = {"sans": 0, "serif": 0}
         self.style_sample_counts: Dict[str, int] = {"sans": 0, "serif": 0}
+        self.font_names: List[str] = []
 
         font_dirs = [
             p for p in training_data_dir.iterdir()
@@ -236,6 +241,7 @@ class PrecomputedGlyphDataset(Dataset):
                     pass
 
             label = float(_infer_style_label(style_source))
+            self.font_names.append(style_source)
             if label > 0.5:
                 self.style_counts["serif"] += 1
             else:
@@ -437,6 +443,58 @@ def discover_fonts(root: Path) -> List[str]:
         paths.extend(str(p) for p in root.rglob(ext))
     paths.sort()
     return paths
+
+
+def _next_model_version(registry: dict) -> str:
+    max_ver = 0
+    for key in (registry.get("models") or {}).keys():
+        m = re.match(r"^v(\d+)$", str(key))
+        if m:
+            max_ver = max(max_ver, int(m.group(1)))
+    return f"v{max_ver + 1}"
+
+
+def _register_trained_model(
+    checkpoint: dict,
+    source_model_path: Path,
+    dataset_font_names: List[str],
+    version_detail: str,
+) -> str:
+    """Persist a versioned checkpoint and update model_registry.json."""
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    registry_path = MODELS_DIR / "model_registry.json"
+
+    try:
+        with open(registry_path, "r", encoding="utf-8") as f:
+            registry = json.load(f)
+    except Exception:
+        registry = {"models": {}, "latest": None}
+
+    registry.setdefault("models", {})
+    version = _next_model_version(registry)
+
+    version_dir = MODELS_DIR / "versions" / version
+    version_dir.mkdir(parents=True, exist_ok=True)
+    version_file = version_dir / "font_vae.pt"
+    torch.save(checkpoint, version_file)
+
+    model_rel_path = str(Path("versions") / version / "font_vae.pt")
+    registry["models"][version] = {
+        "status": "active",
+        "created_at": datetime.datetime.utcnow().isoformat() + "Z",
+        "model_path": model_rel_path,
+        "model_file": source_model_path.name,
+        "fonts": sorted(list(dict.fromkeys(dataset_font_names))),
+        "latent_dim": checkpoint.get("latent_dim"),
+        "version_detail": version_detail,
+        "size_mb": round(version_file.stat().st_size / 1_048_576, 2),
+    }
+    registry["latest"] = version
+
+    with open(registry_path, "w", encoding="utf-8") as f:
+        json.dump(registry, f, indent=2)
+
+    return version
 
 
 # ---------------------------------------------------------------------------
@@ -784,7 +842,19 @@ def train(
     for alias in ("font_vae.pt", "font_vae_unified.pt"):
         torch.save(checkpoint, MODELS_DIR / alias)
 
-    print(f"Model saved → {MODEL_FILE}")
+    if char_mode == "alphabet":
+        version_detail = f"Alphabet · {latent_dim}dim · {epochs}ep · {font_count} fonts"
+    else:
+        version_detail = f"Unicode · {latent_dim}dim · {epochs}ep · {font_count} fonts"
+
+    version_id = _register_trained_model(
+        checkpoint=checkpoint,
+        source_model_path=MODEL_FILE,
+        dataset_font_names=getattr(dataset, "font_names", []),
+        version_detail=version_detail,
+    )
+
+    print(f"Model saved → {MODEL_FILE} (registered as {version_id})")
 
     elapsed = time.time() - t_start
     _write_status({

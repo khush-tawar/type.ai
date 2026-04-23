@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Prevent double-tap zoom on iOS for buttons */
+  button, input, select, textarea {
+    touch-action: manipulation;
+  }
+}
+
+@layer utilities {
+  /* Smooth scrolling for consent/debrief text areas */
+  .scroll-smooth {
+    scroll-behavior: smooth;
+  }
+}

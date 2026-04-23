@@ -19,4 +19,13 @@ echo "  http://localhost:5001"
 echo "================================="
 echo ""
 
+# Reclaim port if stale server/process is still bound.
+OLD_PIDS=$(lsof -i :5001 -t 2>/dev/null | tr '\n' ' ' | xargs)
+if [ -n "$OLD_PIDS" ]; then
+	echo "Port 5001 is in use by: $OLD_PIDS"
+	echo "Stopping stale process(es)…"
+	kill $OLD_PIDS 2>/dev/null || true
+	sleep 1
+fi
+
 "$PYTHON" server.py
