@@ -1,35 +1,30 @@
 import { useState } from 'react'
 
-const CONSENT_TEXT = `[REPLACE WITH YOUR IRB-APPROVED CONSENT FORM TEXT]
+const CONSENT_TEXT = `INFORMED CONSENT
 
-PURPOSE OF STUDY
-You are invited to participate in a research study evaluating Devanagari typography. The purpose of this study is to assess how accurately different typography systems reproduce authentic Devanagari script letterforms, as judged by fluent readers.
+PURPOSE OF THE STUDY
+You are invited to participate in a research study on multilingual typeface perception. The study examines how fluent readers evaluate script rendering quality across different writing systems.
 
-PROCEDURES
-You will view a series of Devanagari letterforms and provide ratings on their authenticity and quality. The study takes approximately 15–20 minutes. For some stimuli, you may also draw corrections directly on the image using your finger or mouse.
+WHAT YOU WILL DO
+You will view script images and rate them on quality-related criteria. Some items may also allow optional annotation or correction marking. The study takes approximately 12-20 minutes.
 
 ELIGIBILITY
-You must be 18 years of age or older and able to read Devanagari script (Hindi, Marathi, Sanskrit, Nepali, or a related language).
+You should be at least 18 years old and familiar with reading the script(s) shown in the study.
 
 RISKS AND BENEFITS
-There are no known risks associated with this study beyond those encountered in everyday life. Your participation will contribute to research on typography and AI systems that serve communities using Devanagari script.
+This study involves minimal risk, comparable to everyday online activities. There is no direct personal benefit, but your responses will help improve AI-assisted typography research and evaluation workflows.
 
-CONFIDENTIALITY
-Your responses will be collected anonymously. No personally identifiable information will be collected. A randomly generated ID will be used in place of your name. Data will be stored securely on encrypted servers and used only for research purposes.
+CONFIDENTIALITY AND DATA USE
+Your responses are collected without direct personal identifiers. A random participant ID is generated for analysis. Data is stored in a secure research database and used for aggregated analysis, reporting, and research outputs.
 
 VOLUNTARY PARTICIPATION
-Participation is completely voluntary. You may skip any item, take breaks, or withdraw at any time without penalty or loss of compensation.
+Participation is voluntary. You may stop at any time before final submission. You may skip specific items where allowed.
 
-DATA AND COMPENSATION
-If you were recruited through Prolific, a completion code will be displayed at the end of the study. You must complete the study to receive compensation.
+COMPENSATION
+If this study was accessed via a recruitment platform, your completion code will be shown on the final page after submission.
 
-CONTACT INFORMATION
-If you have questions about this study or your rights as a research participant, please contact:
-
-Principal Investigator: [Your Name]
-Institution: [Your Institution]
-Email: [Your Email]
-IRB Protocol: [Protocol Number]`
+CONTACT
+For questions about this study, use the recruitment platform message channel associated with this task listing.`
 
 export default function WelcomePage({ onComplete }) {
   const [consented, setConsented] = useState(false)

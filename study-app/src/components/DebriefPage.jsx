@@ -1,22 +1,22 @@
-const DEBRIEF_TEXT = `[REPLACE WITH YOUR IRB-APPROVED DEBRIEF TEXT]
+const DEBRIEF_TEXT = `THANK YOU FOR PARTICIPATING
 
-WHAT WAS THIS STUDY ABOUT?
-This study investigated how fluent Devanagari readers evaluate typography produced by different systems. You viewed a mix of letterforms created by artificial intelligence, professional type designers, and historical sources — without being told which was which. Your judgments help researchers understand what makes AI-generated Devanagari look authentic or inauthentic to native readers.
+WHAT THIS STUDY MEASURED
+This study evaluated how participants perceive typeface quality across multiple scripts. You reviewed rendered text samples and provided ratings that help compare visual authenticity, readability, and structural consistency.
 
-WHY DOES THIS MATTER?
-As AI systems increasingly generate text in Indic scripts, it is important to evaluate whether they produce typography that is culturally authentic and structurally correct. The expertise of fluent readers like you is essential to this research. Findings may directly inform improvements to AI typography tools that serve Hindi, Marathi, Nepali, and Sanskrit-speaking communities.
+WHY THIS RESEARCH MATTERS
+Your judgments help identify where current AI and digital typography systems perform well and where they need improvement, especially for multilingual and non-Latin scripts.
 
-WERE ANY STIMULI DECEPTIVE?
-You were not told the source of each letterform, but this was disclosed in the consent form and is not considered deception under IRB guidelines. No letterforms were deliberately malformed beyond what naturally occurs in different production methods.
+ABOUT STIMULUS SOURCES
+During the task, the source category of each sample was not shown in order to reduce bias in ratings. This is a standard research design choice for perception studies.
 
-HOW WILL YOUR DATA BE USED?
-Your anonymous responses will be analyzed to identify patterns in what readers accept or reject across different source types. Results will be shared through academic publications and may inform open-source improvements to AI typography systems.
+HOW YOUR DATA WILL BE USED
+Submitted responses are analyzed in aggregate for research and model evaluation. Findings may be used in technical reports, publications, and future improvements to typography generation systems.
 
-WITHDRAWING YOUR DATA
-If you decide you no longer wish your data to be included after completing the study, contact the researcher with your participant code (shown above) within 14 days of participation.
+PRIVACY
+No direct personal identifiers are required for analysis. Your session is associated with a random participant ID.
 
-QUESTIONS OR CONCERNS?
-[Researcher Name] · [Institution] · [Email] · IRB Protocol [Number]`
+QUESTIONS
+If you have questions about this study, please contact the study team through the same recruitment channel used to access this task.`
 
 export default function DebriefPage({ participantId, submitError }) {
   const completionCode = import.meta.env.VITE_PROLIFIC_CODE || 'DEVTYPE25'
