@@ -49,7 +49,7 @@ python3 -m http.server 8000
 
 Design system showcase:
 
-- Open `webapp/design-system.html` to review BIQ-aligned tokens and components.
+- Open `webapp/design-system.html` to review design tokens and components.
 
 ## Technology
 
