@@ -47,10 +47,6 @@ python3 -m http.server 8000
 # Visit http://localhost:8000
 ```
 
-Design system showcase:
-
-- Open `webapp/design-system.html` to review BIQ-aligned tokens and components.
-
 ## Technology
 
 - **opentype.js** — Font parsing (TrueType/OpenType)
