@@ -32,7 +32,7 @@
 │   │   ├── README.md                      # Webapp documentation
 │   │   ├── css/
 │   │   │   ├── style.css                  # Global styles
-│   │   │   └── biq-design-system.css      # BIQ design tokens + components
+│   │   │   └── style.css                  # Design tokens + components
 │   │   └── js/
 │   │       ├── app.js                     # Main app orchestration
 │   │       ├── ai-generator.js            # AI Generate tab logic
@@ -87,7 +87,7 @@
 │   │   └── ...
 │
 ├── 📖 DOCUMENTATION (Important!)
-│   ├── CLAUDE.md                          # ⭐ BIQ Design System Rules (READ FIRST)
+│   ├── CLAUDE.md                          # ⭐ Design System Rules (READ FIRST)
 │   ├── UNIFIED_PIPELINE_GUIDE.md          # ⭐ End-to-end workflow
 │   ├── UNIFIED_PIPELINE_IMPLEMENTATION.md # ⭐ Technical architecture
 │   ├── FILE_INDEX.md                      # This file
@@ -144,7 +144,7 @@
 | File | Purpose | Status | Notes |
 |------|---------|--------|-------|
 | `webapp/index.html` | Main UI shell | ✅ Active | Tabs: Explore, AI Generate, Font Morphing, Design System |
-| `webapp/css/biq-design-system.css` | BIQ tokens + components | ✅ Active | All colors, typography, spacing tokens defined here |
+| `webapp/css/style.css` | Design tokens + components | ✅ Active | All colors, typography, spacing tokens defined here |
 | `webapp/js/ai-generator.js` | AI Generate tab | ✅ Active | Model testing & generation interface |
 | `webapp/js/font-analyzer.js` | Explore tab | ✅ Active | Font selection, upload, analysis |
 
@@ -246,7 +246,7 @@ webapp/js/ai-generator.js      ← Always latest logic
 - ✅ `scripts/sdf.py` — If deleted, training will break
 - ✅ `models/model_registry.json` — Loss = can't track models
 - ✅ `training_data/training_manifest.json` — Loss = Colab won't know which fonts to train on
-- ✅ `webapp/css/biq-design-system.css` — Loss = UI design tokens gone
+- ✅ `webapp/css/style.css` — Loss = UI design tokens gone
 - ✅ `models/versions/v2/model.pt` — Loss = current model gone (but can retrain)
 
 ---
