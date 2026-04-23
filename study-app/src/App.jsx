@@ -9,7 +9,7 @@ import { selectStimuli } from './lib/utils'
 import { supabase } from './lib/supabase'
 import stimuliManifest from './data/stimuli.json'
 
-const STORAGE_KEY = 'deva-study-v1'
+const STORAGE_KEY = 'deva-study-v2'
 const N_STIMULI = 30
 
 function loadSaved() {
