@@ -37,12 +37,6 @@
       "image_path": "/stimuli/telugu_typeface_classification.png",
       "source_type": "multilingual",
       "allow_drawing": true
-    },
-    {
-      "id": "stim_tamil_001",
-      "image_path": "/stimuli/tamil_typeface_classification.png",
-      "source_type": "multilingual",
-      "allow_drawing": false
     }
   ]
 }

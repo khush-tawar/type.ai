@@ -10,7 +10,7 @@ import { supabase } from './lib/supabase'
 import stimuliManifest from './data/stimuli.json'
 
 const STORAGE_KEY = 'deva-study-v2'
-const N_STIMULI = 30
+const N_STIMULI = stimuliManifest.stimuli.length
 
 function loadSaved() {
   try {

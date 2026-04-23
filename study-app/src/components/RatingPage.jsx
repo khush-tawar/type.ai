@@ -199,6 +199,53 @@ export default function RatingPage({ stimulus, index, total, startTime, onComple
           </div>
         </section>
 
+        {/* Reference and chip selection */}
+        <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-5">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">Which styles look correctly rendered?</p>
+            <p className="text-xs text-slate-400 mt-1">
+              Use the reference labels below, then select all styles that fit this sample.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3 text-center">
+              Reference
+            </p>
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              {QUALITY_OPTIONS.map(option => (
+                <div
+                  key={option}
+                  className="min-h-12 rounded-xl border border-slate-200 bg-white px-3 py-2 flex items-center justify-center text-center text-sm font-semibold text-slate-700 shadow-sm"
+                >
+                  {option}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div role="group" aria-label="Select all matching quality categories" className="flex flex-wrap gap-2">
+            {QUALITY_OPTIONS.map(option => {
+              const isSelected = selectedQualities.includes(option)
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => toggleQuality(option)}
+                  aria-pressed={isSelected}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold border-2 transition-all duration-100 ${
+                    isSelected
+                      ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                      : 'bg-white border-slate-300 text-slate-600 hover:border-indigo-400 hover:text-indigo-600'
+                  }`}
+                >
+                  {option}
+                </button>
+              )
+            })}
+          </div>
+        </section>
+
         {/* Accept / Reject */}
         <section className="bg-white rounded-2xl border border-slate-200 p-5">
           <p className="text-sm font-semibold text-slate-800 mb-3">
@@ -252,53 +299,6 @@ export default function RatingPage({ stimulus, index, total, startTime, onComple
             />
           ))}
         </section>
-
-          {/* Reference and chip selection */}
-          <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-5">
-            <div>
-              <p className="text-sm font-semibold text-slate-800">Which styles look correctly rendered?</p>
-              <p className="text-xs text-slate-400 mt-1">
-                Use the reference labels below, then select all styles that fit this sample.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3 text-center">
-                Reference
-              </p>
-              <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                {QUALITY_OPTIONS.map(option => (
-                  <div
-                    key={option}
-                    className="min-h-12 rounded-xl border border-slate-200 bg-white px-3 py-2 flex items-center justify-center text-center text-sm font-semibold text-slate-700 shadow-sm"
-                  >
-                    {option}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div role="group" aria-label="Select all matching quality categories" className="flex flex-wrap gap-2">
-              {QUALITY_OPTIONS.map(option => {
-                const isSelected = selectedQualities.includes(option)
-                return (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => toggleQuality(option)}
-                    aria-pressed={isSelected}
-                    className={`rounded-full px-4 py-2 text-sm font-semibold border-2 transition-all duration-100 ${
-                      isSelected
-                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
-                        : 'bg-white border-slate-300 text-slate-600 hover:border-indigo-400 hover:text-indigo-600'
-                    }`}
-                  >
-                    {option}
-                  </button>
-                )
-              })}
-            </div>
-          </section>
 
         {/* Optional annotation */}
         <section className="bg-white rounded-2xl border border-slate-200 p-5">
