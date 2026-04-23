@@ -199,7 +199,7 @@ export default function RatingPage({ stimulus, index, total, startTime, onComple
           </div>
         </section>
 
-        {/* Reference and chip selection */}
+        {/* Typeface quality reference and chips */}
         <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-5">
           <div>
             <p className="text-sm font-semibold text-slate-800">Which styles look correctly rendered?</p>
@@ -300,7 +300,7 @@ export default function RatingPage({ stimulus, index, total, startTime, onComple
           ))}
         </section>
 
-        {/* Optional annotation */}
+          {/* Optional annotation */}
         <section className="bg-white rounded-2xl border border-slate-200 p-5">
           <label htmlFor="annotation" className="block text-sm font-semibold text-slate-800 mb-2">
             What looks wrong, if anything?{' '}

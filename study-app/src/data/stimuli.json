@@ -12,7 +12,7 @@
       "id": "stim_hangul_001",
       "image_path": "/stimuli/hangul_typeface_classification.png",
       "source_type": "multilingual",
-      "allow_drawing": false
+      "allow_drawing": true
     },
     {
       "id": "stim_japanese_001",
@@ -24,13 +24,13 @@
       "id": "stim_arabic_001",
       "image_path": "/stimuli/arabic_typeface_classification.png",
       "source_type": "multilingual",
-      "allow_drawing": false
+      "allow_drawing": true
     },
     {
       "id": "stim_bengali_001",
       "image_path": "/stimuli/bengali_typeface_classification.png",
       "source_type": "multilingual",
-      "allow_drawing": false
+      "allow_drawing": true
     },
     {
       "id": "stim_telugu_001",
