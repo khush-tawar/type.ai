@@ -25,6 +25,10 @@ CREATE INDEX IF NOT EXISTS idx_study_responses_participant
 -- ============================================================
 ALTER TABLE study_responses ENABLE ROW LEVEL SECURITY;
 
+-- Recreate policies so this script is safe to run multiple times
+DROP POLICY IF EXISTS "anon_insert" ON study_responses;
+DROP POLICY IF EXISTS "auth_read" ON study_responses;
+
 -- Anonymous participants can INSERT their own response
 CREATE POLICY "anon_insert" ON study_responses
   FOR INSERT TO anon
