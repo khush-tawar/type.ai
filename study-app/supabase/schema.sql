@@ -54,6 +54,7 @@ SELECT
   r ->> 'stimulusId'                         AS stimulus_id,
   r ->> 'sourceType'                         AS source_type,
   r ->> 'verdict'                            AS verdict,
+  r -> 'selectedQualities'                   AS selected_qualities,
   (r -> 'ratings' ->> 'structuralCorrectness')::INT AS structural_correctness,
   (r -> 'ratings' ->> 'culturalAuthenticity')::INT  AS cultural_authenticity,
   (r -> 'ratings' ->> 'readability')::INT           AS readability,
