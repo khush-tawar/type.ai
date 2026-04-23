@@ -13,49 +13,6 @@ const QUALITY_OPTIONS = [
   'Cursive',
 ]
 
-const QUALITY_REFERENCE_STYLES = {
-  'Sans Serif': {
-    fontFamily: 'Inter, Arial, sans-serif',
-    fontWeight: 700,
-  },
-  'Serif': {
-    fontFamily: 'Georgia, "Times New Roman", serif',
-    fontWeight: 500,
-  },
-  'Handwriting': {
-    fontFamily: '"Segoe Print", "Bradley Hand", "Comic Sans MS", cursive',
-    fontWeight: 500,
-    letterSpacing: '0.02em',
-  },
-  'Pixel': {
-    fontFamily: '"Courier New", "Lucida Console", monospace',
-    fontWeight: 700,
-    letterSpacing: '0.04em',
-  },
-  'Display': {
-    fontFamily: 'Impact, "Arial Black", sans-serif',
-    fontWeight: 700,
-    letterSpacing: '0.01em',
-  },
-  'Monospace': {
-    fontFamily: '"Courier New", "SFMono-Regular", Menlo, monospace',
-    fontWeight: 500,
-  },
-  'Calligraphy': {
-    fontFamily: '"Palatino Linotype", "Book Antiqua", Palatino, serif',
-    fontStyle: 'italic',
-    fontWeight: 500,
-  },
-  'Black Letter': {
-    fontFamily: '"Old English Text MT", "Lucida Blackletter", serif',
-    fontWeight: 700,
-  },
-  'Cursive': {
-    fontFamily: '"Brush Script MT", "Segoe Script", cursive',
-    fontWeight: 500,
-  },
-}
-
 const SCALES = [
   {
     key: 'structuralCorrectness',
@@ -244,28 +201,12 @@ export default function RatingPage({ stimulus, index, total, startTime, onComple
 
         {/* Typeface quality reference and chips */}
         <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-5">
-          <div>
-            <p className="text-sm font-semibold text-slate-800">Which styles look correctly rendered?</p>
-            <p className="text-xs text-slate-400 mt-1">
-              Use the reference labels below, then select all styles that fit this sample.
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3 text-center">
-              Reference
-            </p>
-            <div className="grid grid-cols-3 gap-2 sm:gap-3">
-              {QUALITY_OPTIONS.map(option => (
-                <div
-                  key={option}
-                  className="min-h-12 rounded-xl border border-slate-200 bg-white px-3 py-2 flex items-center justify-center text-center text-sm font-semibold text-slate-700 shadow-sm"
-                  style={QUALITY_REFERENCE_STYLES[option]}
-                >
-                  {option}
-                </div>
-              ))}
-            </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+            <img
+              src="/stimuli/typeface_reference.png"
+              alt="Typeface classification reference"
+              className="w-full h-auto rounded-xl"
+            />
           </div>
 
           <div role="group" aria-label="Select all matching quality categories" className="flex flex-wrap gap-2">
