@@ -117,7 +117,7 @@ export default function DrawingCanvas({ imageSrc, onDrawingChange }) {
       {/* Canvas */}
       <div
         className="relative w-full max-w-sm sm:max-w-md border-2 border-slate-300 rounded-xl overflow-hidden"
-        style={{ aspectRatio: '1 / 1' }}
+        style={{ aspectRatio: '1 / 1', touchAction: 'none' }}
       >
         <img
           src={imageSrc}

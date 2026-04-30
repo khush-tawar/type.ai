@@ -1,189 +1,145 @@
-# Devanagari Typography Evaluation Study
+# Devanagari Evaluation Study App
 
-A web-based human subjects research tool for collecting community feedback on AI-generated Devanagari typography. IRB-approved study flow: consent → demographics → instructions → stimulus rating → debrief.
+Web-based, anonymous research instrument for evaluating Devanagari samples across blinded source conditions.
 
-## Quick Start
+## Stack
+
+- React 18 + Vite
+- Tailwind CSS
+- Supabase (Postgres + Storage + RLS)
+- Vercel
+
+## Participant Flow
+
+- `/` landing + group-link validation (`?group=A|B|C|D`)
+- `/consent`
+- `/demographics`
+- `/instructions`
+- `/study` (stimulus loop)
+- `/thanks`
+- `/withdrawn`
+- `/researcher` (passphrase-gated utility page)
+
+## One-Time Setup (Supabase)
+
+1. Create a Supabase project.
+2. Go to SQL Editor and run `supabase/schema.sql`.
+3. In Storage, create a private bucket named `drawings`.
+4. Confirm the SQL finished without errors, especially:
+   - tables: `participants`, `consent_events`, `responses`
+   - view: `stimulus_responses`
+   - function: `export_study_dataset()`
+
+Notes:
+- RLS policies are included and idempotent (`DROP POLICY IF EXISTS` + recreate).
+- The schema includes an export RPC used by `/researcher`.
+
+## Environment Variables
+
+Create `.env.local` in `study-app`:
+
+```bash
+VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
+VITE_PROLIFIC_CODE=DEVTYPE25
+VITE_RESEARCHER_PASSPHRASE=choose-a-strong-passphrase
+```
+
+If Supabase vars are not set, writes are safely no-op/logged locally for UI testing.
+
+## Local Development
 
 ```bash
 cd study-app
 npm install
-cp .env.example .env.local   # fill in your credentials
 npm run dev
 ```
 
-Open http://localhost:5173.
-
----
-
-## Tech Stack
-
-| Layer | Choice |
-|---|---|
-| Framework | React 18 + Vite 5 |
-| Styling | Tailwind CSS v3 |
-| Drawing | react-sketch-canvas |
-| Backend | Supabase (Postgres + RLS) |
-| Deployment | Vercel (or any static host) |
-
----
-
-## Adding Stimuli
-
-1. **Add images** to `public/stimuli/`. PNG at 400×400 px works best; white or transparent background.
-2. **Edit `src/data/stimuli.json`** — add an entry per image:
-
-```json
-{
-  "id": "stim_ai_009",
-  "image_path": "/stimuli/ai_009.png",
-  "source_type": "ai",
-  "allow_drawing": true
-}
-```
-
-| Field | Type | Description |
-|---|---|---|
-| `id` | string | Unique identifier — never change after data collection starts |
-| `image_path` | string | Path relative to `public/` |
-| `source_type` | `"ai"` \| `"professional"` \| `"historical"` \| `"control"` | **Never shown to participants** |
-| `allow_drawing` | boolean | Show drawing canvas on this stimulus (~30% recommended) |
-
-The app selects N=30 stimuli per participant, balanced across `source_type` groups and randomized.
-
----
-
-## Environment Variables
-
-Copy `.env.example` to `.env.local` and fill in:
-
-```
-VITE_SUPABASE_URL=https://your-project-id.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key-here
-VITE_PROLIFIC_CODE=DEVTYPE25
-```
-
-Get the URL and anon key from **Supabase dashboard → Project Settings → API**.
-
----
-
-## Supabase Setup
-
-1. Create a new Supabase project.
-2. In the SQL editor, paste and run `supabase/schema.sql`.
-3. Copy your project URL and anon key into `.env.local`.
-
-### Pulling Data
-
-```sql
--- All responses as flat rows (one per stimulus per participant)
-SELECT * FROM stimulus_responses;
-
--- Export CSV from the Supabase table editor or:
--- supabase db dump --data-only -t study_responses > data.sql
-```
-
-### Drawing Annotations
-
-Drawing PNGs are stored as base64 data URLs in `responses[*].drawingData`. To extract them:
-
-```python
-import json, base64, pathlib
-
-with open('data.json') as f:
-    rows = json.load(f)
-
-for row in rows:
-    pid = row['participant_id'][:8]
-    for resp in row['responses']:
-        if resp.get('drawingData'):
-            header, b64 = resp['drawingData'].split(',', 1)
-            pathlib.Path(f"drawings/{pid}_{resp['stimulusId']}.png").write_bytes(
-                base64.b64decode(b64)
-            )
-```
-
----
-
-## Deployment (Vercel)
+Production build check:
 
 ```bash
-# From the study-app directory
-vercel deploy
+cd study-app
+npm run build
 ```
 
-Set environment variables in the Vercel dashboard under **Settings → Environment Variables**.
+## Deploy to Vercel
 
-The `vercel.json` already handles SPA routing.
+1. Import the repo into Vercel (or use CLI).
+2. Add the same env vars in Vercel Project Settings.
+3. Deploy.
 
-### Other Hosts
+`vercel.json` is configured for SPA routing and npm-based install/build.
 
-Any static host works (Netlify, GitHub Pages, Cloudflare Pages). Build with `npm run build` — output is in `dist/`.
+## Stimuli Management
 
----
+Stimuli are static assets and metadata-driven.
 
-## Study Configuration
+- Manifest: `public/stimuli/manifest.json`
+- Images directory: `public/stimuli/images/`
 
-| Setting | Location | Default |
-|---|---|---|
-| N stimuli per participant | `App.jsx` line `const N_STIMULI` | 30 |
-| Consent form text | `WelcomePage.jsx` `CONSENT_TEXT` | Placeholder |
-| Debrief text | `DebriefPage.jsx` `DEBRIEF_TEXT` | Placeholder |
-| Prolific completion code | `.env.local` `VITE_PROLIFIC_CODE` | `DEVTYPE25` |
-| Likert scale labels | `RatingPage.jsx` `SCALES` array | Editable |
+To add/edit stimuli:
+1. Add or replace image files in `public/stimuli/images/`.
+2. Update `public/stimuli/manifest.json` entries (`id`, `image_path`, `source_type`, `scale`, `context`, `metadata`).
+3. Commit and deploy.
 
----
+Tip: use Vercel preview deployments for quick stimulus QA before production.
 
-## Data Schema
+## Data Capture Summary
 
-Each row in `study_responses` has:
+Session-level table: `participants`
+- group, demographics, status, session seed/order, timestamps
 
-```
-participant_id   UUID
-demographics     { language, region, ageRange, readingFrequency }
-responses        [
-  {
-    stimulusId       string
-    sourceType       string
-    verdict          "accept" | "reject" | null
-    ratings          { structuralCorrectness, culturalAuthenticity, readability }  (1–7)
-    annotation       string
-    drawingData      string | null  (base64 PNG)
-    timeSpentMs      number
-    skipped          boolean
-    timestamp        ISO 8601 string
-  },
-  ...
-]
-submitted_at     ISO 8601 string
-```
+Consent log: `consent_events`
 
-Use the `stimulus_responses` view in Supabase for flat per-stimulus analysis.
+Per-stimulus table: `responses`
+- includes `stimulus_id`, `source_type`, binary judgment, 3 Likerts, category, optional text, optional drawing path, group-specific response, timing, skip flag
 
----
+Drawings:
+- uploaded to Supabase Storage bucket `drawings`
+- path format: `participantId/stimulusId.png`
 
-## Participant Flow
+## Pulling Data
 
-```
-Welcome + Consent
-       ↓
-  Demographics
-       ↓
-  Instructions
-       ↓
-  Rating (×30)  ←─ localStorage auto-save (refresh-safe)
-       ↓
-  Debrief + Prolific code
+You have 3 options:
+
+1. Supabase dashboard tables/views
+2. `/researcher` route exports
+3. SQL/RPC function: `export_study_dataset()`
+
+### `/researcher` utilities
+
+- Aggregate counts by group/status and completion rate
+- CSV download via `export_study_dataset()`
+- Drawings ZIP download from Storage (PNG files)
+
+## IRB Retention and Data Deletion
+
+Per protocol, run data destruction at retention end (example: 3 years):
+
+```sql
+DELETE FROM responses;
+DELETE FROM consent_events;
+DELETE FROM participants;
 ```
 
-Progress is saved in `localStorage` key `deva-study-v1`. Participants can safely refresh or close and return.
+Also empty the `drawings` storage bucket in Supabase Storage.
 
----
+IRB audit practice:
+- capture screenshots of SQL deletion execution and Storage deletion confirmation for records.
 
-## IRB Notes
+## Privacy Notes
 
-- No personally identifiable information is collected.
-- Participant IDs are UUID v4 generated client-side.
-- No cookies beyond localStorage.
-- No analytics, no tracking pixels.
-- `robots: noindex` in `index.html` prevents search engine indexing.
-- Replace placeholder consent/debrief text with your IRB-approved language before deployment.
+- No analytics SDKs are integrated.
+- No external CDN-hosted stimulus assets are used.
+- No direct PII fields are collected in study forms.
+- Supabase edge/network logs are managed by Supabase; configure retention in your Supabase project according to policy.
+
+## Project Pointers
+
+- `src/App.jsx`: router + progress persistence shell
+- `src/context/ParticipantContext.jsx`: participant/session state + local persistence
+- `src/pages/StudyPage.jsx`: main trial UI and response submit/queue flow
+- `src/pages/ResearcherPage.jsx`: passphrase gate + CSV/ZIP exports
+- `src/lib/selection.js`: seeded per-session stimulus selection
+- `src/lib/storage.js`: drawing upload + metadata strip
+- `supabase/schema.sql`: DDL, RLS, export function

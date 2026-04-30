@@ -1,152 +1,75 @@
-import { useState, useEffect, useCallback } from 'react'
-import { v4 as uuidv4 } from 'uuid'
-import WelcomePage from './components/WelcomePage'
-import DemographicsPage from './components/DemographicsPage'
-import InstructionsPage from './components/InstructionsPage'
-import RatingPage from './components/RatingPage'
-import DebriefPage from './components/DebriefPage'
-import { selectStimuli } from './lib/utils'
-import { supabase } from './lib/supabase'
-import stimuliManifest from './data/stimuli.json'
+import { useEffect } from 'react'
+import { createBrowserRouter, RouterProvider, Outlet, useLocation } from 'react-router-dom'
+import { ParticipantProvider, useParticipant } from './context/ParticipantContext'
+import LandingPage from './pages/LandingPage'
+import ConsentPage from './pages/ConsentPage'
+import DemographicsPage from './pages/DemographicsPage'
+import InstructionsPage from './pages/InstructionsPage'
+import StudyPage from './pages/StudyPage'
+import ThanksPage from './pages/ThanksPage'
+import WithdrawnPage from './pages/WithdrawnPage'
+import ErrorPage from './pages/ErrorPage'
+import ResearcherPage from './pages/ResearcherPage'
 
-const STORAGE_KEY = 'deva-study-v2'
-const N_STIMULI = stimuliManifest.stimuli.length
-
-function loadSaved() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : null
-  } catch {
-    return null
-  }
-}
-
-function getInitialState() {
-  const saved = loadSaved()
-  if (saved?.page && saved.page !== 'welcome' && saved.page !== 'debrief') {
-    return saved
-  }
-  return {
-    participantId: uuidv4(),
-    page: 'welcome',
-    demographics: null,
-    stimuli: [],
-    currentIndex: 0,
-    responses: [],
-  }
-}
-
-export default function App() {
-  const [state, setState] = useState(getInitialState)
-  const [startTime, setStartTime] = useState(Date.now())
-  const [submitting, setSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState(false)
-
-  const { participantId, page, demographics, stimuli, currentIndex, responses } = state
+function RouteProgressShell() {
+  const { state } = useParticipant()
+  const location = useLocation()
 
   useEffect(() => {
-    if (page === 'debrief') {
-      localStorage.removeItem(STORAGE_KEY)
+    if (!state.participantId) return
+
+    const progressKey = `study_progress_${state.participantId}`
+
+    if (state.status === 'completed' || state.status === 'withdrawn') {
+      localStorage.removeItem(progressKey)
       return
     }
+
+    const payload = {
+      route: `${location.pathname}${location.search}`,
+      stimulusIndex: state.currentStimulusIndex,
+      sessionStimuli: state.sessionStimuli,
+    }
+
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        participantId, page, demographics, stimuli, currentIndex, responses,
-      }))
+      localStorage.setItem(progressKey, JSON.stringify(payload))
     } catch {
-      // localStorage quota — not fatal, study continues
+      // non-fatal localStorage quota failure
     }
-  }, [participantId, page, demographics, stimuli, currentIndex, responses])
+  }, [
+    location.pathname,
+    location.search,
+    state.participantId,
+    state.currentStimulusIndex,
+    state.sessionStimuli,
+    state.status,
+  ])
 
-  const handleConsentComplete = useCallback(() => {
-    setState(prev => ({ ...prev, page: 'demographics' }))
-  }, [])
-
-  const handleDemographicsComplete = useCallback((demo) => {
-    const selected = selectStimuli(stimuliManifest, N_STIMULI)
-    setState(prev => ({
-      ...prev,
-      page: 'instructions',
-      demographics: demo,
-      stimuli: selected,
-      currentIndex: 0,
-      responses: [],
-    }))
-  }, [])
-
-  const handleInstructionsComplete = useCallback(() => {
-    setStartTime(Date.now())
-    setState(prev => ({ ...prev, page: 'rating' }))
-  }, [])
-
-  const handleStimulusComplete = useCallback(async (response) => {
-    const updatedResponses = [...responses, response]
-    const nextIndex = currentIndex + 1
-    const isLast = nextIndex >= stimuli.length
-
-    if (isLast) {
-      setSubmitting(true)
-      setSubmitError(false)
-      try {
-        await submitData(participantId, demographics, updatedResponses)
-      } catch (err) {
-        console.error('Submission failed — data preserved in localStorage', err)
-        setSubmitError(true)
-        // Backup: keep saved state so researcher can recover manually
-        try {
-          localStorage.setItem(
-            `${STORAGE_KEY}-backup-${participantId}`,
-            JSON.stringify({ participantId, demographics, responses: updatedResponses, failedAt: new Date().toISOString() })
-          )
-        } catch { /* ignore */ }
-      } finally {
-        setSubmitting(false)
-      }
-      setState(prev => ({ ...prev, responses: updatedResponses, page: 'debrief' }))
-    } else {
-      setState(prev => ({ ...prev, responses: updatedResponses, currentIndex: nextIndex }))
-      setStartTime(Date.now())
-    }
-  }, [responses, currentIndex, stimuli.length, participantId, demographics])
-
-  if (page === 'welcome') {
-    return <WelcomePage onComplete={handleConsentComplete} />
-  }
-  if (page === 'demographics') {
-    return <DemographicsPage onComplete={handleDemographicsComplete} />
-  }
-  if (page === 'instructions') {
-    return <InstructionsPage onComplete={handleInstructionsComplete} stimuliCount={N_STIMULI} />
-  }
-  if (page === 'rating' && stimuli.length > 0) {
-    return (
-      <RatingPage
-        stimulus={stimuli[currentIndex]}
-        index={currentIndex}
-        total={stimuli.length}
-        startTime={startTime}
-        onComplete={handleStimulusComplete}
-        isSubmitting={submitting}
-      />
-    )
-  }
-  if (page === 'debrief') {
-    return <DebriefPage participantId={participantId} submitError={submitError} />
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <p className="text-gray-400 text-sm">Loading study…</p>
-    </div>
-  )
+  return <Outlet />
 }
 
-async function submitData(participantId, demographics, responses) {
-  const { error } = await supabase.from('study_responses').insert({
-    participant_id: participantId,
-    demographics,
-    responses,
-    submitted_at: new Date().toISOString(),
-  })
-  if (error) throw error
+const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <RouteProgressShell />,
+    children: [
+      { index: true, element: <LandingPage /> },
+      { path: 'consent', element: <ConsentPage /> },
+      { path: 'demographics', element: <DemographicsPage /> },
+      { path: 'instructions', element: <InstructionsPage /> },
+      { path: 'study', element: <StudyPage /> },
+      { path: 'thanks', element: <ThanksPage /> },
+      { path: 'withdrawn', element: <WithdrawnPage /> },
+      { path: 'error', element: <ErrorPage /> },
+      { path: 'researcher', element: <ResearcherPage /> },
+    ],
+  },
+])
+
+export default function App() {
+  return (
+    <ParticipantProvider>
+      <RouterProvider router={router} />
+    </ParticipantProvider>
+  )
 }

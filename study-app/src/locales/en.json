@@ -1,0 +1,68 @@
+{
+  "study.title": "Multilingual Typeface Perception Study",
+  "study.subtitle": "Human Subjects Research · Anonymous",
+  "study.approx_time": "~15–20 minutes",
+
+  "landing.no_group": "It looks like you arrived here without a valid study link. Please use the link provided by the researcher.",
+  "landing.begin": "Begin Study →",
+  "landing.resume": "Resume where you left off →",
+  "landing.resume_notice": "You have a study in progress.",
+
+  "consent.heading": "Informed Consent",
+  "consent.checkbox": "I have read this consent form, I am 18 or older, and I agree to participate.",
+  "consent.begin": "Begin study →",
+  "consent.decline": "I do not consent",
+
+  "demographics.heading": "Background Information",
+  "demographics.step": "Step 1 of 3",
+  "demographics.continue": "Continue →",
+
+  "instructions.heading": "Task Instructions",
+  "instructions.step": "Step 2 of 3",
+  "instructions.start": "Start Evaluation →",
+
+  "study.binary.authentic": "Looks like authentic script",
+  "study.binary.not_authentic": "Doesn't look authentic",
+  "study.likert.structural": "Structural Correctness",
+  "study.likert.structural_low": "Structurally wrong",
+  "study.likert.structural_high": "Structurally correct",
+  "study.likert.authenticity": "Cultural Authenticity",
+  "study.likert.authenticity_low": "Not authentic",
+  "study.likert.authenticity_high": "Fully authentic",
+  "study.likert.readability": "Readability",
+  "study.likert.readability_low": "Hard to read",
+  "study.likert.readability_high": "Easy to read",
+  "study.category.label": "If you had to classify the style of this letterform, what would you call it?",
+  "study.category.placeholder": "Select a style…",
+  "study.annotation.label": "What looks wrong, if anything?",
+  "study.annotation.placeholder": "Describe any issues you notice (optional, max 500 chars)…",
+  "study.submit": "Submit and continue →",
+  "study.skip": "Skip",
+  "study.exit": "Exit study",
+  "study.drawing.toggle": "✏️ Draw corrections",
+  "study.drawing.hide": "Hide canvas",
+
+  "exit_modal.heading": "Exit study?",
+  "exit_modal.body": "If you exit now, your responses up to this point will still be saved unless you ask us to delete them. Continue exiting?",
+  "exit_modal.confirm": "Yes, exit",
+  "exit_modal.cancel": "No, keep going",
+
+  "thanks.heading": "Study Complete!",
+  "thanks.subheading": "Thank you for your contribution to this research.",
+  "thanks.code_label": "Prolific Completion Code",
+  "thanks.code_instruction": "Copy this code and enter it in Prolific to receive your compensation.",
+
+  "withdrawn.heading": "You've exited the study",
+  "withdrawn.body": "Thank you for your time. If you arrived via a recruitment platform, please return there. You may close this window.",
+  "withdrawn.contact": "If you have questions or wish to have your data deleted, please contact the research team through the recruitment platform.",
+
+  "error.heading": "Study link not found",
+  "error.body": "It looks like you arrived here without a valid study link. Please use the exact link provided by the researcher or recruiter.",
+
+  "researcher.heading": "Researcher Dashboard",
+  "researcher.passphrase_prompt": "Researcher passphrase",
+  "researcher.unlock": "Unlock",
+  "researcher.csv_download": "Download responses CSV",
+  "researcher.drawings_note": "To download drawing annotations, use Supabase Storage → drawings/ bucket in the project dashboard.",
+  "researcher.wrong_passphrase": "Incorrect passphrase."
+}
