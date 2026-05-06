@@ -4,14 +4,15 @@ const ParticipantContext = createContext(null)
 
 const INITIAL_STATE = {
   participantId: null,
-  group: null,
+  groupCode: null,         // A, B, C, D, E
+  userType: null,          // type_designer, daily_user, ui_designer, student, general
   prolificPid: null,
   demographics: null,
-  sessionStimuli: [],
+  sessionStimuli: [],      // array of { stimulusId, granularityLevel, serifVariant, contextType }
   sessionSeed: null,
   currentStimulusIndex: 0,
   responses: [],
-  status: 'pending', // pending | in_progress | completed | withdrawn
+  status: 'pending',       // pending | in_progress | completed | withdrawn
   consentGiven: false,
   consentTimestamp: null,
 }

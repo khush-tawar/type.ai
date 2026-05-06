@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useParticipant } from '../context/ParticipantContext'
 import { supabase } from '../lib/supabase'
-import { buildSession, loadManifest } from '../lib/selection'
+import { generateStudyManifest, selectSessionStimuli } from '../lib/manifest'
 import { t } from '../locales'
 
 const COUNTRIES = [
@@ -50,7 +50,12 @@ function Field({ label, required, children }) {
   return (
     <div>
       <p className="text-sm font-semibold text-slate-800 mb-2.5">
-        {label}{required && <span className="text-red-500 ml-1" aria-hidden>*</span>}
+        {label}
+        {required && (
+          <span className="text-red-500 ml-1" aria-hidden>
+            *
+          </span>
+        )}
       </p>
       {children}
     </div>
@@ -59,9 +64,11 @@ function Field({ label, required, children }) {
 
 function SelectGrid({ options, value, onChange, cols = 3 }) {
   return (
-    <div className={`grid gap-2`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-      {options.map(opt => (
-        <SelectButton key={opt} value={opt} current={value} onClick={onChange}>{opt}</SelectButton>
+    <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+      {options.map((opt) => (
+        <SelectButton key={opt} value={opt} current={value} onClick={onChange}>
+          {opt}
+        </SelectButton>
       ))}
     </div>
   )
@@ -70,46 +77,42 @@ function SelectGrid({ options, value, onChange, cols = 3 }) {
 export default function DemographicsPage() {
   const navigate = useNavigate()
   const { state, dispatch } = useParticipant()
-  const { group } = state
+  const { userType } = state
 
   const [form, setForm] = useState({
     ageRange: '',
     country: '',
-    // Groups A/B/C
     devaLanguage: '',
     devaLanguageOther: '',
     region: '',
     readingFreq: '',
-    // Group A extra
+    // Designer-specific
     designExp: '',
     designDiscipline: '',
-    // Group C extra
+    // Expert-specific (could be added later)
     expertType: '',
     expertNote: '',
-    // Group D extra
+    // General/UI designer
     nonLatinExp: '',
     nonLatinScripts: '',
   })
   const [loading, setLoading] = useState(false)
 
-  const set = (k) => (v) => setForm(f => ({ ...f, [k]: v }))
-  const setStr = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
+  const set = (k) => (v) => setForm((f) => ({ ...f, [k]: v }))
+  const setStr = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
-  const isGroupABC = ['A', 'B', 'C'].includes(group)
-  const isGroupA = group === 'A'
-  const isGroupC = group === 'C'
-  const isGroupD = group === 'D'
+  const isDesigner = userType === 'type_designer'
+  const isUIDesigner = userType === 'ui_designer'
+  const isStudent = userType === 'student'
+  const isDailyUser = userType === 'daily_user'
 
   const isValid = () => {
     if (!form.ageRange || !form.country) return false
-    if (isGroupABC) {
-      if (!form.devaLanguage) return false
-      if (form.devaLanguage === 'Other' && !form.devaLanguageOther.trim()) return false
-      if (!form.region || !form.readingFreq) return false
-    }
-    if (isGroupA && (!form.designExp || !form.designDiscipline)) return false
-    if (isGroupC && !form.expertType) return false
-    if (isGroupD && !form.nonLatinExp) return false
+    if (!form.devaLanguage) return false
+    if (form.devaLanguage === 'Other' && !form.devaLanguageOther.trim()) return false
+    if (!form.region || !form.readingFreq) return false
+    if (isDesigner && (!form.designExp || !form.designDiscipline)) return false
+    if (isUIDesigner && !form.nonLatinExp) return false
     return true
   }
 
@@ -123,32 +126,47 @@ export default function DemographicsPage() {
 
     // Persist demographics to Supabase
     try {
-      await supabase.from('participants')
-        .update({ demographics: demo })
+      await supabase
+        .from('participants')
+        .update({ demographics: demo, status: 'in_progress' })
         .eq('id', state.participantId)
     } catch {
-      // Intentionally silent: no participant identifiers in client logs.
+      // Intentionally silent
     }
 
     // Build session stimulus list
     try {
-      const manifest = await loadManifest()
-      const stimuli = buildSession(manifest, group, state.participantId)
-      dispatch({ type: 'SET_SESSION', payload: { stimuli, seed: state.participantId } })
+      const manifest = generateStudyManifest()
+      const sessionStimuli = selectSessionStimuli(manifest, userType, state.participantId)
 
-      // Persist session stimuli list for reproducibility
+      // Map to schema structure for StudyPage
+      const sessionStimuliPayload = sessionStimuli.map((s) => ({
+        stimulusId: s.id,
+        granularityLevel: s.granularityLevel,
+        serifVariant: s.serifVariant,
+        contextType: s.contextType,
+        sourceType: s.sourceType,
+        imageUrl: s.imageUrl,
+      }))
+
+      dispatch({
+        type: 'SET_SESSION',
+        payload: { stimuli: sessionStimuliPayload, seed: state.participantId },
+      })
+
+      // Persist session to Supabase
       try {
-        await supabase.from('participants')
+        await supabase
+          .from('participants')
           .update({
-            session_stimuli: stimuli.map(s => ({ id: s.id, sessionDrawing: s.sessionDrawing })),
-            status: 'in_progress',
+            session_stimuli: sessionStimuliPayload,
           })
           .eq('id', state.participantId)
       } catch {
-        // Intentionally silent: no participant identifiers in client logs.
+        // Intentionally silent
       }
     } catch (err) {
-      console.warn('[study] Failed to load stimulus manifest.')
+      console.error('Failed to generate session stimuli:', err)
     }
 
     setLoading(false)
@@ -156,124 +174,88 @@ export default function DemographicsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="max-w-lg w-full bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="bg-indigo-700 px-8 py-5">
-          <p className="text-indigo-300 text-xs font-semibold uppercase tracking-widest mb-1">
-            {t('demographics.step')}
-          </p>
-          <h2 className="text-xl font-bold text-white">{t('demographics.heading')}</h2>
-        </div>
+    <div className="min-h-screen bg-slate-50 py-8">
+      <div className="max-w-2xl mx-auto px-4">
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="bg-indigo-700 px-6 py-8">
+            <h1 className="text-2xl font-bold text-white mb-2">Background Information</h1>
+            <p className="text-indigo-200 text-sm">Help us better understand your perspective</p>
+          </div>
 
-        <form onSubmit={handleSubmit} className="p-8 space-y-7" noValidate>
+          <form onSubmit={handleSubmit} className="p-6 space-y-8">
+            {/* Age */}
+            <Field label="How would you describe your age range?" required>
+              <SelectGrid options={AGE_RANGES} value={form.ageRange} onChange={set('ageRange')} cols={3} />
+            </Field>
 
-          {/* All groups */}
-          <Field label="Age range" required>
-            <SelectGrid options={AGE_RANGES} value={form.ageRange} onChange={set('ageRange')} cols={3} />
-          </Field>
+            {/* Country */}
+            <Field label="Which country are you in?" required>
+              <SelectGrid options={COUNTRIES} value={form.country} onChange={set('country')} cols={2} />
+            </Field>
 
-          <Field label="Country of residence" required>
-            <select
-              value={form.country}
-              onChange={setStr('country')}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-700"
-            >
-              <option value="">Select country…</option>
-              {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </Field>
-
-          {/* Groups A, B, C */}
-          {isGroupABC && (<>
-            <Field label="Primary Devanagari language" required>
+            {/* Devanagari language */}
+            <Field label="How would you describe your fluency in Devanagari?" required>
               <SelectGrid options={DEVA_LANGUAGES} value={form.devaLanguage} onChange={set('devaLanguage')} cols={3} />
               {form.devaLanguage === 'Other' && (
                 <input
                   type="text"
+                  placeholder="Please specify"
                   value={form.devaLanguageOther}
                   onChange={setStr('devaLanguageOther')}
-                  placeholder="Please specify…"
-                  className="mt-2 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  aria-label="Other language"
+                  className="mt-3 w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               )}
             </Field>
 
-            <Field label="Region where you primarily learned the script" required>
-              <select
-                value={form.region}
-                onChange={setStr('region')}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-700"
-              >
-                <option value="">Select region…</option>
-                {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+            {/* Region */}
+            <Field label="Which region are you based in?" required>
+              <SelectGrid options={INDIAN_STATES} value={form.region} onChange={set('region')} cols={2} />
             </Field>
 
-            <Field label="Reading frequency (Devanagari)" required>
+            {/* Reading frequency */}
+            <Field label="How often do you read Devanagari?" required>
               <SelectGrid options={READING_FREQS} value={form.readingFreq} onChange={set('readingFreq')} cols={3} />
             </Field>
-          </>)}
 
-          {/* Group A extra */}
-          {isGroupA && (<>
-            <Field label="Years of design practice" required>
-              <SelectGrid options={DESIGN_EXP} value={form.designExp} onChange={set('designExp')} cols={2} />
-            </Field>
+            {/* Designer-specific: design experience */}
+            {isDesigner && (
+              <>
+                <Field label="What is your design experience level?" required>
+                  <SelectGrid options={DESIGN_EXP} value={form.designExp} onChange={set('designExp')} cols={3} />
+                </Field>
 
-            <Field label="Primary design discipline" required>
-              <SelectGrid options={DESIGN_DISCIPLINES} value={form.designDiscipline} onChange={set('designDiscipline')} cols={2} />
-            </Field>
-          </>)}
+                <Field label="What design discipline(s) are you trained in?" required>
+                  <SelectGrid options={DESIGN_DISCIPLINES} value={form.designDiscipline} onChange={set('designDiscipline')} cols={3} />
+                </Field>
+              </>
+            )}
 
-          {/* Group C extra */}
-          {isGroupC && (<>
-            <Field label="Self-described expertise" required>
-              <SelectGrid options={EXPERT_TYPES} value={form.expertType} onChange={set('expertType')} cols={2} />
-            </Field>
+            {/* UI Designer / General: non-Latin experience */}
+            {(isUIDesigner || isDailyUser) && (
+              <Field label="Have you worked with or studied non-Latin scripts?" required>
+                <SelectGrid options={NON_LATIN_EXP} value={form.nonLatinExp} onChange={set('nonLatinExp')} cols={3} />
+              </Field>
+            )}
 
-            <Field label="How would you describe your relationship to Devanagari?">
-              <textarea
-                value={form.expertNote}
-                onChange={setStr('expertNote')}
-                maxLength={500}
-                rows={3}
-                placeholder="Optional, max 500 characters…"
-                className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </Field>
-          </>)}
-
-          {/* Group D extra */}
-          {isGroupD && (<>
-            <Field label="Have you ever read or studied any non-Latin script?" required>
-              <SelectGrid options={NON_LATIN_EXP} value={form.nonLatinExp} onChange={set('nonLatinExp')} cols={3} />
-            </Field>
-
-            <Field label="Which non-Latin scripts have you encountered, if any?">
-              <input
-                type="text"
-                value={form.nonLatinScripts}
-                onChange={setStr('nonLatinScripts')}
-                maxLength={200}
-                placeholder="Optional, max 200 characters…"
-                className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </Field>
-          </>)}
-
-          <button
-            type="submit"
-            disabled={!isValid() || loading}
-            className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all ${
-              isValid() && !loading
-                ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm cursor-pointer'
-                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-            }`}
-          >
-            {loading ? 'Setting up your session…' : t('demographics.continue')}
-          </button>
-        </form>
+            {/* Submit */}
+            <div className="flex gap-3 pt-4 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => navigate('/consent')}
+                className="flex-1 px-4 py-3 rounded-lg border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                Back
+              </button>
+              <button
+                type="submit"
+                disabled={!isValid() || loading}
+                className="flex-1 px-4 py-3 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors disabled:bg-slate-300 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Preparing study…' : 'Continue'}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   )

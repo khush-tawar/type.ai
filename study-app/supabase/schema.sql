@@ -8,13 +8,14 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 -- ── participants ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS participants (
   id                UUID        PRIMARY KEY,
-  group_code        TEXT        NOT NULL CHECK (group_code IN ('A','B','C','D')),
+  group_code        TEXT        NOT NULL CHECK (group_code IN ('A','B','C','D','E')),
+  user_type         TEXT        NOT NULL CHECK (user_type IN ('type_designer','daily_user','ui_designer','student','general')),
   demographics      JSONB,
   prolific_pid      TEXT,
   status            TEXT        NOT NULL DEFAULT 'in_progress'
                                 CHECK (status IN ('in_progress','completed','withdrawn')),
   withdrawn_reason  TEXT,
-  session_stimuli   JSONB,       -- ordered list of { id, sessionDrawing } for reproducibility
+  session_stimuli   JSONB,       -- ordered list of { id, granularityLevel, serifVariant, contextType } for reproducibility
   session_seed      TEXT,        -- participant ID used as randomisation seed
   user_agent        TEXT,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -34,38 +35,48 @@ CREATE TABLE IF NOT EXISTS responses (
   id                      UUID        DEFAULT gen_random_uuid() PRIMARY KEY,
   participant_id          UUID        NOT NULL REFERENCES participants(id) ON DELETE CASCADE,
   stimulus_id             TEXT        NOT NULL,
+  granularity_level       TEXT        NOT NULL CHECK (granularity_level IN ('diacritics','glyphs','words','sentences')),
+  serif_variant           TEXT,       -- e.g., 'serif_a', 'serif_b', 'serif_c'
+  context_type            TEXT        CHECK (context_type IN ('isolated','with_context')),
   source_type             TEXT        CHECK (source_type IN ('ai','professional','historical','control')),
-  binary_judgment         TEXT        CHECK (binary_judgment IN ('authentic','not_authentic')),
-  likert_structural       SMALLINT    CHECK (likert_structural BETWEEN 1 AND 7),
-  likert_authenticity     SMALLINT    CHECK (likert_authenticity BETWEEN 1 AND 7),
+  
+  -- Style taxonomy selection
+  style_taxonomy          TEXT        CHECK (style_taxonomy IN ('serif','sans_serif','handwriting','pixel','display','monospace','calligraphy','black_letter','cursive','none')),
+  
+  -- Likert scales (all participants, but interpretation varies by group)
+  likert_design_quality   SMALLINT    CHECK (likert_design_quality BETWEEN 1 AND 7),
   likert_readability      SMALLINT    CHECK (likert_readability BETWEEN 1 AND 7),
-  category_attribution    TEXT,
+  likert_authenticity     SMALLINT    CHECK (likert_authenticity BETWEEN 1 AND 7),
+  likert_cultural_fit     SMALLINT    CHECK (likert_cultural_fit BETWEEN 1 AND 7),
+  
+  -- Group-specific response fields (JSONB for flexibility)
+  group_specific_response JSONB,      -- e.g., {"use_in_project": true} for designers, {"use_daily": false} for users
+  
+  -- Annotation and metadata
   error_annotation_text   TEXT,
-  drawing_storage_path    TEXT,        -- path in Storage bucket drawings/
-  group_specific_response JSONB,
+  drawing_storage_path    TEXT,       -- path in Storage bucket drawings/
   time_on_screen_ms       INTEGER,
   skipped                 BOOLEAN     NOT NULL DEFAULT FALSE,
   submitted_at            TIMESTAMPTZ NOT NULL,
+  
   CONSTRAINT responses_required_when_not_skipped CHECK (
     skipped = TRUE OR (
-      binary_judgment IS NOT NULL
-      AND likert_structural IS NOT NULL
-      AND likert_authenticity IS NOT NULL
+      style_taxonomy IS NOT NULL
+      AND likert_design_quality IS NOT NULL
       AND likert_readability IS NOT NULL
-      AND category_attribution IS NOT NULL
+      AND likert_authenticity IS NOT NULL
+      AND likert_cultural_fit IS NOT NULL
     )
   )
 );
 
-ALTER TABLE responses
-  ADD COLUMN IF NOT EXISTS source_type TEXT
-  CHECK (source_type IN ('ai','professional','historical','control'));
-
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_responses_participant ON responses (participant_id);
 CREATE INDEX IF NOT EXISTS idx_responses_stimulus    ON responses (stimulus_id);
-CREATE INDEX IF NOT EXISTS idx_participants_group     ON participants (group_code);
-CREATE INDEX IF NOT EXISTS idx_participants_status    ON participants (status);
+CREATE INDEX IF NOT EXISTS idx_responses_granularity ON responses (granularity_level);
+CREATE INDEX IF NOT EXISTS idx_participants_group    ON participants (group_code);
+CREATE INDEX IF NOT EXISTS idx_participants_status   ON participants (status);
+CREATE INDEX IF NOT EXISTS idx_participants_user_type ON participants (user_type);
 
 -- ── Row Level Security ────────────────────────────────────────
 ALTER TABLE participants   ENABLE ROW LEVEL SECURITY;
@@ -150,6 +161,7 @@ CREATE VIEW stimulus_responses AS
 SELECT
   p.id                                                AS session_id,
   p.group_code,
+  p.user_type,
   p.prolific_pid,
   p.status                                            AS session_status,
   p.created_at                                        AS session_created_at,
@@ -166,12 +178,15 @@ SELECT
   p.demographics ->> 'nonLatinExp'                    AS non_latin_exp,
   p.demographics ->> 'nonLatinScripts'                AS non_latin_scripts,
   r.stimulus_id,
+  r.granularity_level,
+  r.serif_variant,
+  r.context_type,
   r.source_type,
-  r.binary_judgment,
-  r.likert_structural,
-  r.likert_authenticity,
+  r.style_taxonomy,
+  r.likert_design_quality,
   r.likert_readability,
-  r.category_attribution,
+  r.likert_authenticity,
+  r.likert_cultural_fit,
   r.error_annotation_text,
   r.drawing_storage_path,
   r.drawing_storage_path IS NOT NULL                  AS has_drawing,
@@ -187,6 +202,7 @@ CREATE FUNCTION export_study_dataset()
 RETURNS TABLE (
   participant_id UUID,
   group_code TEXT,
+  user_type TEXT,
   prolific_pid TEXT,
   participant_status TEXT,
   participant_created_at TIMESTAMPTZ,
@@ -203,14 +219,17 @@ RETURNS TABLE (
   non_latin_exp TEXT,
   non_latin_scripts TEXT,
   stimulus_id TEXT,
+  granularity_level TEXT,
+  serif_variant TEXT,
+  context_type TEXT,
   source_type TEXT,
-  binary_judgment TEXT,
-  likert_structural SMALLINT,
-  likert_authenticity SMALLINT,
+  style_taxonomy TEXT,
+  likert_design_quality SMALLINT,
   likert_readability SMALLINT,
-  category_attribution TEXT,
-  error_annotation_text TEXT,
+  likert_authenticity SMALLINT,
+  likert_cultural_fit SMALLINT,
   group_specific_response JSONB,
+  error_annotation_text TEXT,
   drawing_storage_path TEXT,
   time_on_screen_ms INTEGER,
   skipped BOOLEAN,
@@ -223,6 +242,7 @@ AS $$
   SELECT
     p.id,
     p.group_code,
+    p.user_type,
     p.prolific_pid,
     p.status,
     p.created_at,
@@ -239,14 +259,17 @@ AS $$
     p.demographics ->> 'nonLatinExp' AS non_latin_exp,
     p.demographics ->> 'nonLatinScripts' AS non_latin_scripts,
     r.stimulus_id,
+    r.granularity_level,
+    r.serif_variant,
+    r.context_type,
     r.source_type,
-    r.binary_judgment,
-    r.likert_structural,
-    r.likert_authenticity,
+    r.style_taxonomy,
+    r.likert_design_quality,
     r.likert_readability,
-    r.category_attribution,
-    r.error_annotation_text,
+    r.likert_authenticity,
+    r.likert_cultural_fit,
     r.group_specific_response,
+    r.error_annotation_text,
     r.drawing_storage_path,
     r.time_on_screen_ms,
     r.skipped,
